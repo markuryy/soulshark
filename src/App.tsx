@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Home, Heart, Library, Settings, ChevronLeft, ChevronRight, Search, Music } from "lucide-react";
+import { Home, Heart, Library, Settings, ChevronLeft, ChevronRight, Search, Music, Download } from "lucide-react";
 import { useState, useEffect } from "react";
 import SoulSharkLogo from "@/components/logo";
 import SettingsPage from "@/components/settings/SettingsPage";
@@ -7,6 +7,7 @@ import SpotifyAuth from "@/components/spotify/SpotifyAuth";
 import SpotifySearch from "@/components/spotify/SpotifySearch";
 import SpotifyPlaylistItem from "@/components/spotify/SpotifyPlaylistItem";
 import SpotifyContent from "@/components/spotify/SpotifyContent";
+import DownloadsPage from "@/components/downloads/DownloadsPage";
 import { getUserPlaylists, initializeSpotify } from "@/lib/spotify";
 
 // Types
@@ -249,6 +250,14 @@ function App() {
               Your Library
             </Button>
             <Button 
+              variant={currentPage === "downloads" ? "default" : "ghost"} 
+              className="w-full justify-start text-lg font-semibold"
+              onClick={() => handlePageChange("downloads")}
+            >
+              <Download className="mr-3 h-5 w-5" />
+              Downloads
+            </Button>
+            <Button 
               variant={currentPage === "settings" ? "default" : "ghost"} 
               className="w-full justify-start text-lg font-semibold"
               onClick={() => handlePageChange("settings")}
@@ -291,6 +300,8 @@ function App() {
           <div className="p-6 mt-[72px]">
             {/* Render content based on current page */}
             {currentPage === "settings" && <SettingsPage />}
+            
+            {currentPage === "downloads" && <DownloadsPage />}
             
             {currentPage === "home" && (
               <div className="flex flex-col items-center justify-center h-96">
