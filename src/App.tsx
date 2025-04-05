@@ -10,6 +10,7 @@ import SpotifyContent from "@/components/spotify/SpotifyContent";
 import DownloadsPage from "@/components/downloads/DownloadsPage";
 import { getUserPlaylists } from "@/lib/spotify";
 import { SpotifyProvider, useSpotify } from "@/lib/SpotifyContext";
+import SimpleBar from 'simplebar-react';
 
 // Types
 interface SpotifyPlaylist {
@@ -208,13 +209,13 @@ function AppContent() {
   };
 
   return (
-    <div className="min-h-screen h-full bg-black text-white overflow-auto">
+    <SimpleBar style={{ maxHeight: '100vh' }} className="min-h-screen h-full bg-black text-white" autoHide={false}>
       <div className="flex">
         {/* Sidebar */}
         <div className="w-60 bg-black p-6 flex flex-col gap-6 fixed h-screen">
           <div className="flex items-center gap-2 mb-2">
-            <SoulSharkLogo className="h-8 w-8 mr-2" />
-            <span className="text-xl font-bold">soulshark</span>
+            <SoulSharkLogo className="h-10 w-10 mr-2" />
+            <span className="text-xl font-bold">SoulShark</span>
           </div>
           <div className="space-y-4">
             <Button 
@@ -480,7 +481,7 @@ function AppContent() {
           </div>
         </div>
       </div>
-    </div>
+    </SimpleBar>
   );
 }
 
