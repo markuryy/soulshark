@@ -1,6 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { Home, Heart, Library, Settings, ChevronLeft, ChevronRight, Search, Music, Download } from "lucide-react";
 import { useState, useEffect } from "react";
+import { listen } from "@tauri-apps/api/event";
+import { toast } from "sonner";
 import SoulSharkLogo from "@/components/logo";
 import SettingsPage from "@/components/settings/SettingsPage";
 import SpotifySearch from "@/components/spotify/SpotifySearch";
@@ -45,6 +47,17 @@ function App() {
 function AppContent() {
   const { isAuthenticated: isSpotifyAuthenticated, refreshAuthStatus } = useSpotify();
   
+  useEffect(() => {
+    const unlistenPromise = listen("download:started", (event) => {
+      const payload = event.payload as { title?: string };
+      toast(`Download started: ${payload.title ?? "Unknown"}`);
+    });
+
+    return () => {
+      unlistenPromise.then((unlisten) => unlisten());
+    };
+  }, []);
+
   const [currentPage, setCurrentPage] = useState("home");
   const [spotifyPlaylists, setSpotifyPlaylists] = useState<SpotifyPlaylist[]>([]);
   const [likedSongsCount, setLikedSongsCount] = useState<number | null>(null);
@@ -471,12 +484,6 @@ function AppContent() {
                 ) : (
                   <div className="flex flex-col items-center justify-center py-12">
                     <p className="text-gray-400 mb-6">Connect to Spotify to view your library</p>
-                    <Button 
-                      onClick={() => handlePageChange("settings")}
-                      className="bg-green-600 hover:bg-green-700"
-                    >
-                      Go to Settings
-                    </Button>
                   </div>
                 )}
               </div>
