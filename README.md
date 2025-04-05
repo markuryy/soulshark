@@ -1,92 +1,122 @@
 # SoulShark
 
-SoulShark is a desktop application built with Tauri, React, and TypeScript that allows you to download music from Soulseek based on your Spotify playlists.
+SoulShark is a macOS desktop application built with Tauri, React, and TypeScript that allows you to locate music on Soulseek, using Spotify for a familiar library and search.
 
-## Features
+![SoulShark Home](media/SoulSharkHome.png)
 
-- **Settings Management**: Configure Soulseek and Spotify credentials
-- **Secure Storage**: Sensitive credentials are stored securely using Tauri's Stronghold plugin
-- **Persistent Settings**: Non-sensitive settings are stored using Tauri's Store plugin
-- **Modern UI**: Built with React, TypeScript, and Tailwind CSS
+## Getting Started
+
+### Setting Up Spotify Integration
+
+1. Create a Spotify Developer account at [developer.spotify.com](https://developer.spotify.com/)
+2. Create a new app in the Spotify Developer Dashboard
+
+   ![Spotify Developer Dashboard](media/SpotifyDeveloperDashboard.jpeg)
+
+3. Configure your app with the following settings:
+   - Add `http://localhost:5174/callback` as a Redirect URI
+   - Select "Web API" under "Which API/SDKs are you planning to use?"
+4. Copy your Client ID and Client Secret
+5. In SoulShark, go to Settings and enter your Spotify Client ID and Client Secret
+
+   ![Settings Page](media/Settings.png)
+
+### Logging In to Spotify
+
+1. Click the "Connect to Spotify" button in the app
+
+   ![Authorize Spotify](media/AuthorizeSpotify.jpeg)
+
+2. A browser window will open asking you to sign in to your Spotify account
+3. Authorize the SoulShark application
+4. Close the browser window
+5. Your Spotify library will now load in SoulShark
+
+   ![SoulShark Home](media/SoulSharkHome.png)
+
+### Connecting to Soulseek
+
+In the Soulseek section of Settings:
+1. Enter your Soulseek credentials (username/pass) 
+2. Enter an absolute path on your machine to store downloads. 
+3. Enter your desired file download format without a leading period (i.e. `mp3`, `flac`)
+
+> ⚠️ Do not set `Downloads Path` as your main music library storage, since it performs destructive operations during normal use.
+
+### Using SoulShark
+
+- Browse your Spotify library
+  
+  ![Your Library](media/YourLibrary.png)
+
+- View your playlists
+  
+  ![Playlist View](media/PlaylistView.png)
+
+- View your liked songs
+  
+  ![Liked Songs](media/LikedSongs.png)
+
+- Search for tracks, albums, or artists
+  
+  ![Search Spotify](media/SearchSpotify.png)
+
+- Download music from Soulseek that matches your Spotify content
+  
+  ![Active Downloads](media/ActiveDownloads.png)
 
 ## Development
 
-### Prerequisites
-
-- [Node.js](https://nodejs.org/) (v16 or later)
-- [Rust](https://www.rust-lang.org/) (v1.77.2 or later)
-- [Bun](https://bun.sh/) (v1.0 or later)
-- [Tauri CLI](https://tauri.app/v1/guides/getting-started/prerequisites)
-
-### Setup
-
-1. Clone the repository
-2. Install dependencies:
-   ```bash
-   bun install
-   ```
-3. Run the development server:
-   ```bash
-   bun run tauri dev
-   ```
-
-### Building
-
-To build the application for production:
+If you're interested in contributing or building from source:
 
 ```bash
-bun run tauri build
+# Install dependencies
+bun install
+
+# Run development server
+bun run tauri dev
 ```
 
-## Architecture
+### Compiling for Your Platform
 
-### Frontend
+SoulShark requires a platform-specific binary of the Soulseek downloader. The following steps explain how to compile this binary:
 
-- **React**: UI library
-- **TypeScript**: Type-safe JavaScript
-- **Tailwind CSS**: Utility-first CSS framework
-- **shadcn/ui**: UI component library
+1. Clone the Soulseek downloader repository:
+   ```bash
+   git clone https://github.com/fiso64/slsk-batchdl
+   ```
 
-### Backend
+2. Compile the downloader for your platform:
+   
+   For macOS (Apple Silicon):
+   ```bash
+   cd slsk-batchdl
+   dotnet publish ./slsk-batchdl.csproj -c Release -r osx-arm64 --self-contained true -p:PublishSingleFile=true -p:UseAppHost=true -o /path/to/webtunes/src-tauri/binaries/sldl_publish
+   cp /path/to/webtunes/src-tauri/binaries/sldl_publish/sldl /path/to/webtunes/src-tauri/binaries/sldl-aarch64-apple-darwin
+   ```
 
-- **Tauri**: Framework for building desktop applications
-- **Rust**: Systems programming language
-- **Tauri Store Plugin**: For storing non-sensitive settings
-- **Tauri Stronghold Plugin**: For securely storing sensitive credentials
+   For other platforms, adjust the `-r` parameter and output path accordingly:
+   - Windows: `-r win-x64` → `sldl-x86_64-pc-windows-msvc.exe`
+   - Linux: `-r linux-x64` → `sldl-x86_64-unknown-linux-gnu`
+   - macOS (Intel): `-r osx-x64` → `sldl-x86_64-apple-darwin`
 
-## Settings
+3. Build or run SoulShark using the appropriate Tauri commands.
 
-The application uses two types of storage for settings:
+## To Do
 
-1. **Tauri Store Plugin**: For non-sensitive settings like UI preferences, download paths, etc.
-2. **Tauri Stronghold Plugin**: For sensitive credentials like passwords and API keys
+- [x] Spotify SDK integration
+- [x] Spotify authentication
+- [x] Soulseek downloader integration
+- [ ] Playlist conversion
+- [ ] Github CI Workflow
+- [ ] Sign macOS binary
+- [ ] Compile for Windows/Linux/macOS Intel
 
-### Settings Structure
+## Credits
 
-```typescript
-interface AppSettings {
-  soulseek: {
-    username: string;
-    downloads_path: string;
-    remove_special_chars: boolean;
-    preferred_format: string;
-  };
-  spotify: {
-    client_id: string;
-    redirect_uri: string;
-  };
-  output: {
-    m3u_path: string;
-    name_format: string;
-  };
-}
-
-interface Credentials {
-  soulseek_password: string | null;
-  spotify_client_secret: string | null;
-}
-```
+- [slsk-batchdl](https://github.com/fiso64/slsk-batchdl) - The bundled Soulseek download client
+- [soulify](https://github.com/WB2024/soulify) - Inspired the concept of SoulShark (SoulShark is a remake with Rust/Tauri and a modernized UI)
 
 ## License
 
-MIT
+GNU General Public License v3.0
