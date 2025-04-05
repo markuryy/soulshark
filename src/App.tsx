@@ -12,7 +12,7 @@ function App() {
         {/* Sidebar */}
         <div className="w-60 bg-black p-6 flex flex-col gap-6 fixed h-screen">
           <div className="flex items-center gap-2 mb-2">
-            <SoulSharkLogo className="h-8 w-8 mr-2" />
+            <SoulSharkLogo className="h-8 w-8 mr-2https://context7.com/tauri/llm.txt?topic=store" />
             <span className="text-xl font-bold">soulshark</span>
           </div>
           <div className="space-y-4">
