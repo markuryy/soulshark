@@ -3,9 +3,11 @@ import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
 import SpotifyAuth from "./SpotifyAuth";
 import SpotifyTrackList from "./SpotifyTrackList";
+import { FixedSizeList as List } from "react-window";
 import { 
   getUserPlaylists, 
-  getLikedTracks, 
+  getLikedTracks,
+  getAllLikedTracks,
   getPlaylistTracks,
   downloadLikedTracks,
   downloadPlaylist,
@@ -78,6 +80,7 @@ export default function SpotifyContent({
   const { isAuthenticated, refreshAuthStatus } = useSpotify();
   
   const [isLoading, setIsLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState<{loaded: number; total: number} | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tracks, setTracks] = useState<SpotifyTrack[]>([]);
   const [albums, setAlbums] = useState<SpotifyAlbum[]>([]);
@@ -210,17 +213,27 @@ export default function SpotifyContent({
   // Load liked tracks
   const loadLikedTracks = async () => {
     try {
-      const likedTracksResponse = await getLikedTracks();
-      let tracksToDisplay = likedTracksResponse.map(item => item.track);
+      // Show loading state
+      setIsLoading(true);
+      setLoadingProgress(null);
       
-      // Apply limit if specified
+      // Use the getAllLikedTracks function to fetch all tracks
+      const allTracks = await getAllLikedTracks(50, (loaded, total) => {
+        // Update loading progress state
+        setLoadingProgress({ loaded, total });
+      });
+      
+      // Apply limit if specified (though we want to show all tracks)
+      let tracksToDisplay = allTracks;
       if (limit && limit > 0 && tracksToDisplay.length > limit) {
         tracksToDisplay = tracksToDisplay.slice(0, limit);
       }
       
       setTracks(tracksToDisplay);
+      setLoadingProgress(null);
     } catch (error) {
       console.error("Failed to load liked tracks:", error);
+      setLoadingProgress(null);
       
       // If we get an authentication error, refresh auth status
       if (error instanceof Error && error.message.includes("authentication")) {
@@ -419,7 +432,28 @@ export default function SpotifyContent({
       <div className="p-6">
         <div className="text-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-500 mx-auto mb-4"></div>
-          <p className="text-gray-400">Loading Spotify content...</p>
+          <p className="text-gray-400 mb-2">
+            {loadingProgress 
+              ? `Loading Spotify content (${loadingProgress.loaded}/${loadingProgress.total})...` 
+              : "Loading Spotify content..."}
+          </p>
+          
+          {/* Show progress bar when loading liked tracks */}
+          {loadingProgress && (
+            <div className="w-64 mx-auto">
+              <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-green-500 rounded-full transition-all duration-300"
+                  style={{ 
+                    width: `${(loadingProgress.loaded / loadingProgress.total) * 100}%` 
+                  }}
+                />
+              </div>
+              <div className="text-xs text-gray-400 mt-1">
+                {Math.round((loadingProgress.loaded / loadingProgress.total) * 100)}%
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );

@@ -141,16 +141,94 @@ export async function searchSpotify(query: string, types = ["track", "album", "a
  * Get the user's liked tracks
  * @param limit Number of tracks to fetch (max 50)
  * @param offset Offset for pagination
- * @returns Array of liked tracks
+ * @returns Object containing track items and pagination info
  */
-export async function getLikedTracks(limit: 50 = 50, offset = 0) {
+export async function getLikedTracks(limit: number = 50, offset = 0) {
   const spotify = await initializeSpotify();
   if (!spotify) {
     throw new Error("Not authenticated with Spotify");
   }
 
-  const response = await spotify.currentUser.tracks.savedTracks(limit, offset);
-  return response.items;
+  // Spotify API has a max limit of 50 per request
+  const actualLimit = Math.min(limit, 50) as 50 | 20 | 1;
+  
+  const response = await spotify.currentUser.tracks.savedTracks(actualLimit, offset);
+  return {
+    items: response.items,
+    total: response.total,
+    offset: response.offset,
+    limit: response.limit
+  };
+}
+
+/**
+ * Get total count of user's liked tracks
+ * @returns Total number of liked tracks
+ */
+export async function getLikedTracksCount() {
+  const spotify = await initializeSpotify();
+  if (!spotify) {
+    throw new Error("Not authenticated with Spotify");
+  }
+  
+  // Request just 1 track to get the total count
+  const response = await spotify.currentUser.tracks.savedTracks(1, 0);
+  return response.total;
+}
+
+/**
+ * Get all of the user's liked tracks by making multiple API requests
+ * @param batchSize Number of tracks to fetch per request (max 50)
+ * @param onProgress Optional callback for progress updates
+ * @returns Array of all liked tracks
+ */
+export async function getAllLikedTracks(batchSize: number = 50, onProgress?: (loaded: number, total: number) => void) {
+  const spotify = await initializeSpotify();
+  if (!spotify) {
+    throw new Error("Not authenticated with Spotify");
+  }
+  
+  // Get the total count first
+  const firstBatch = await getLikedTracks(1, 0);
+  const totalTracks = firstBatch.total;
+  
+  // If there are no tracks, return empty array
+  if (totalTracks === 0) {
+    return [];
+  }
+  
+  // Calculate how many requests we need to make
+  const actualBatchSize = Math.min(batchSize, 50);
+  const batchCount = Math.ceil(totalTracks / actualBatchSize);
+  
+  // Create an array of promises for all the requests
+  const allTracks = [];
+  
+  // Start with the first batch we already loaded (if it had items)
+  if (firstBatch.items.length > 0) {
+    allTracks.push(...firstBatch.items.map(item => item.track));
+    
+    // Report progress
+    if (onProgress) {
+      onProgress(allTracks.length, totalTracks);
+    }
+  }
+  
+  // Load remaining batches
+  for (let i = 1; i < batchCount; i++) {
+    const offset = i * actualBatchSize;
+    const response = await getLikedTracks(actualBatchSize, offset);
+    
+    // Add tracks to our array
+    allTracks.push(...response.items.map(item => item.track));
+    
+    // Report progress
+    if (onProgress) {
+      onProgress(allTracks.length, totalTracks);
+    }
+  }
+  
+  return allTracks;
 }
 
 /**
