@@ -2,9 +2,10 @@ import { Button } from "@/components/ui/button";
 import { Home, Heart, Library, Settings, ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import SoulSharkLogo from "@/components/logo";
+import SettingsPage from "@/components/settings/SettingsPage";
 
 function App() {
-  const [currentProgress, setCurrentProgress] = useState(0);
+  const [currentPage, setCurrentPage] = useState("home");
 
   return (
     <div className="min-h-screen h-full bg-black text-white overflow-auto">
@@ -12,23 +13,39 @@ function App() {
         {/* Sidebar */}
         <div className="w-60 bg-black p-6 flex flex-col gap-6 fixed h-screen">
           <div className="flex items-center gap-2 mb-2">
-            <SoulSharkLogo className="h-8 w-8 mr-2https://context7.com/tauri/llm.txt?topic=store" />
+            <SoulSharkLogo className="h-8 w-8 mr-2" />
             <span className="text-xl font-bold">soulshark</span>
           </div>
           <div className="space-y-4">
-            <Button variant="ghost" className="w-full justify-start text-lg font-semibold">
+            <Button 
+              variant={currentPage === "home" ? "default" : "ghost"} 
+              className="w-full justify-start text-lg font-semibold"
+              onClick={() => setCurrentPage("home")}
+            >
               <Home className="mr-3 h-5 w-5" />
               Home
             </Button>
-            <Button variant="ghost" className="w-full justify-start text-lg font-semibold">
+            <Button 
+              variant={currentPage === "liked" ? "default" : "ghost"} 
+              className="w-full justify-start text-lg font-semibold"
+              onClick={() => setCurrentPage("liked")}
+            >
               <Heart className="mr-3 h-5 w-5" />
               Liked
             </Button>
-            <Button variant="ghost" className="w-full justify-start text-lg font-semibold">
+            <Button 
+              variant={currentPage === "library" ? "default" : "ghost"} 
+              className="w-full justify-start text-lg font-semibold"
+              onClick={() => setCurrentPage("library")}
+            >
               <Library className="mr-3 h-5 w-5" />
               Your Library
             </Button>
-            <Button variant="ghost" className="w-full justify-start text-lg font-semibold">
+            <Button 
+              variant={currentPage === "settings" ? "default" : "ghost"} 
+              className="w-full justify-start text-lg font-semibold"
+              onClick={() => setCurrentPage("settings")}
+            >
               <Settings className="mr-3 h-5 w-5" />
               Settings
             </Button>
@@ -60,58 +77,68 @@ function App() {
             </div>
           </div>
 
-          {/* Content Grid */}
+          {/* Content Area */}
           <div className="p-6 mt-[72px]">
-            <div className="mb-8">
-              <h2 className="text-2xl font-bold mb-6">From Artists You Like</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                {[
-                  { title: 'Be Happy', artist: 'Gene Evaro Jr.' },
-                  { title: 'Some Days', artist: 'Ira Wolf' },
-                  { title: 'Chime', artist: 'Alan Gogoll' },
-                  { title: 'Runaway', artist: 'Beast Coast' },
-                  { title: 'In Your Car', artist: 'No Aloha' }
-                ].map((item) => (
-                  <div key={item.title} className="bg-gray-800/30 p-3 rounded-lg hover:bg-gray-800/50 transition group">
-                    <div className="aspect-square bg-gray-700 rounded mb-3"></div>
-                    <h3 className="font-semibold truncate text-sm">{item.title}</h3>
-                    <p className="text-xs text-gray-400 truncate">{item.artist}</p>
-                    <Button 
-                      variant="secondary" 
-                      size="icon" 
-                      className="opacity-0 group-hover:opacity-100 transition bg-green-500 hover:bg-green-400 h-8 w-8 rounded-full mt-2 shadow-lg"
-                    >
-                      ↓
-                    </Button>
+            {currentPage === "settings" ? (
+              <SettingsPage />
+            ) : currentPage === "home" ? (
+              <>
+                <div className="mb-8">
+                  <h2 className="text-2xl font-bold mb-6">From Artists You Like</h2>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                    {[
+                      { title: 'Be Happy', artist: 'Gene Evaro Jr.' },
+                      { title: 'Some Days', artist: 'Ira Wolf' },
+                      { title: 'Chime', artist: 'Alan Gogoll' },
+                      { title: 'Runaway', artist: 'Beast Coast' },
+                      { title: 'In Your Car', artist: 'No Aloha' }
+                    ].map((item) => (
+                      <div key={item.title} className="bg-gray-800/30 p-3 rounded-lg hover:bg-gray-800/50 transition group">
+                        <div className="aspect-square bg-gray-700 rounded mb-3"></div>
+                        <h3 className="font-semibold truncate text-sm">{item.title}</h3>
+                        <p className="text-xs text-gray-400 truncate">{item.artist}</p>
+                        <Button 
+                          variant="secondary" 
+                          size="icon" 
+                          className="opacity-0 group-hover:opacity-100 transition bg-green-500 hover:bg-green-400 h-8 w-8 rounded-full mt-2 shadow-lg"
+                        >
+                          ↓
+                        </Button>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </div>
+                </div>
 
-            <div>
-              <h2 className="text-2xl font-bold mb-6">Your Playlists</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {[
-                  { title: '2021 Greatest Songs', description: 'Your top tracks from 2021' },
-                  { title: 'At Work', description: 'Focus and productivity mix' },
-                  { title: 'Playlist #2', description: 'Your custom collection' },
-                  { title: 'RapCaviar', description: 'Hip-hop essentials' }
-                ].map((playlist) => (
-                  <div key={playlist.title} className="bg-gray-800/30 p-3 rounded-lg hover:bg-gray-800/50 transition group">
-                    <div className="aspect-square bg-gray-700 rounded mb-3"></div>
-                    <h3 className="font-semibold truncate text-sm">{playlist.title}</h3>
-                    <p className="text-xs text-gray-400 truncate">{playlist.description}</p>
-                    <Button 
-                      variant="secondary" 
-                      size="icon" 
-                      className="opacity-0 group-hover:opacity-100 transition bg-green-500 hover:bg-green-400 h-8 w-8 rounded-full mt-2 shadow-lg"
-                    >
-                      ↓
-                    </Button>
+                <div>
+                  <h2 className="text-2xl font-bold mb-6">Your Playlists</h2>
+                  <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {[
+                      { title: '2021 Greatest Songs', description: 'Your top tracks from 2021' },
+                      { title: 'At Work', description: 'Focus and productivity mix' },
+                      { title: 'Playlist #2', description: 'Your custom collection' },
+                      { title: 'RapCaviar', description: 'Hip-hop essentials' }
+                    ].map((playlist) => (
+                      <div key={playlist.title} className="bg-gray-800/30 p-3 rounded-lg hover:bg-gray-800/50 transition group">
+                        <div className="aspect-square bg-gray-700 rounded mb-3"></div>
+                        <h3 className="font-semibold truncate text-sm">{playlist.title}</h3>
+                        <p className="text-xs text-gray-400 truncate">{playlist.description}</p>
+                        <Button 
+                          variant="secondary" 
+                          size="icon" 
+                          className="opacity-0 group-hover:opacity-100 transition bg-green-500 hover:bg-green-400 h-8 w-8 rounded-full mt-2 shadow-lg"
+                        >
+                          ↓
+                        </Button>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center justify-center h-full">
+                <h2 className="text-2xl font-bold">{currentPage.charAt(0).toUpperCase() + currentPage.slice(1)} Page</h2>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
