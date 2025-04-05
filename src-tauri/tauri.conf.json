@@ -31,7 +31,9 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": ["binaries/sldl"],
+    "externalBin": [
+      "binaries/sldl"
+    ],
     "macOS": {
       "minimumSystemVersion": "12.0"
     }
