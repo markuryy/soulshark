@@ -1,11 +1,13 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 use tauri::Manager;
 
-// Import settings module
+// Import modules
 mod commands;
+mod downloads;
 mod settings;
 
-// Re-export settings types for use in commands
+// Re-export types for use in commands
+pub use downloads::{Download, DownloadManagerState, DownloadStatus};
 pub use settings::{AppSettings, Credentials, SettingsState};
 
 #[tauri::command]
@@ -23,6 +25,10 @@ pub fn run() {
             // Initialize settings state
             let settings_state = settings::init_settings_state();
             app.manage(settings_state);
+
+            // Initialize download manager state
+            let download_manager_state = downloads::init_download_manager();
+            app.manage(download_manager_state);
 
             // Initialize settings store
             if let Err(e) = settings::store::init_settings_store(&app.handle()) {
@@ -47,7 +53,11 @@ pub fn run() {
             commands::spotify::refresh_spotify_token,
             commands::spotify::check_pending_auth,
             commands::spotify::start_spotify_callback_server,
-            commands::spotify::stop_spotify_callback_server
+            commands::spotify::stop_spotify_callback_server,
+            commands::downloads::get_all_downloads,
+            commands::downloads::get_download,
+            commands::downloads::cancel_download,
+            commands::downloads::clear_completed_downloads
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

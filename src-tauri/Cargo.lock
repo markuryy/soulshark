@@ -539,8 +539,10 @@ checksum = "1a7964611d71df112cb1730f2ee67324fcf4d0fc6606acbbe9bfe06df124637c"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
+ "js-sys",
  "num-traits",
  "serde",
+ "wasm-bindgen",
  "windows-link",
 ]
 
@@ -3674,8 +3676,10 @@ version = "0.1.0"
 dependencies = [
  "base64 0.13.1",
  "chacha20poly1305",
+ "chrono",
  "once_cell",
  "rand 0.8.5",
+ "regex",
  "reqwest",
  "serde",
  "serde_json",
@@ -3689,6 +3693,7 @@ dependencies = [
  "tiny_http",
  "tokio",
  "url",
+ "uuid",
 ]
 
 [[package]]

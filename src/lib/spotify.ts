@@ -216,6 +216,28 @@ export async function downloadPlaylist(playlistId: string) {
 }
 
 /**
+ * Download a Spotify album using sldl
+ * @param albumId Spotify album ID
+ * @returns Promise that resolves when the download is started
+ */
+export async function downloadAlbum(albumId: string) {
+  const albumUrl = `https://open.spotify.com/album/${albumId}`;
+  
+  try {
+    // Call the Tauri command to execute sldl
+    await invoke("execute_sldl", {
+      query: albumUrl,
+      options: {}
+    });
+    
+    return true;
+  } catch (error) {
+    console.error("Failed to download album:", error);
+    throw error;
+  }
+}
+
+/**
  * Download the user's liked tracks using sldl
  * @returns Promise that resolves when the download is started
  */

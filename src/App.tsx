@@ -299,9 +299,6 @@ function App() {
                 <p className="text-gray-400 mb-6">Build your library, beyond the stream.</p>
                 {!isSpotifyAuthenticated && (
                   <div className="text-center">
-                    <p className="text-gray-400 mb-4">
-                      Sync your Spotify playlists with your Soulseek library
-                    </p>
                     <p className="text-gray-500">
                       Configure Spotify in Settings to see your playlists and tracks
                     </p>

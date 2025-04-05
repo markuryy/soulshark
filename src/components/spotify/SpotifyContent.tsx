@@ -10,6 +10,7 @@ import {
   getPlaylistTracks,
   downloadLikedTracks,
   downloadPlaylist,
+  downloadAlbum,
   resetSpotifyApi,
   searchSpotify,
   getArtist,
@@ -386,6 +387,8 @@ export default function SpotifyContent({
         await downloadLikedTracks();
       } else if (contentType === 'playlist' && playlistId) {
         await downloadPlaylist(playlistId);
+      } else if (contentType === 'album' && albums.length > 0) {
+        await downloadAlbum(albums[0].id);
       }
     } catch (error) {
       console.error("Failed to save tracks:", error);
@@ -614,7 +617,7 @@ export default function SpotifyContent({
               </div>
               <p className="text-gray-400 mt-1">{albums[0].total_tracks} tracks • {new Date(albums[0].release_date).getFullYear()}</p>
               <Button 
-                onClick={() => downloadPlaylist(albums[0].id)}
+                onClick={() => downloadAlbum(albums[0].id)}
                 className="mt-4 bg-green-600 hover:bg-green-700"
                 title="Save album"
               >
