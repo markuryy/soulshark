@@ -1,50 +1,120 @@
+import { Button } from "@/components/ui/button";
+import { Home, Heart, Library, Settings, ChevronLeft, ChevronRight, Disc3 } from "lucide-react";
 import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
-import "./App.css";
 
 function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
-
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
-  }
+  const [currentProgress, setCurrentProgress] = useState(0);
 
   return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
+    <div className="min-h-screen h-full bg-black text-white overflow-auto">
+      <div className="flex">
+        {/* Sidebar */}
+        <div className="w-60 bg-black p-6 flex flex-col gap-6 fixed h-screen">
+          <div className="flex items-center gap-2 mb-2">
+            <Disc3 className="h-8 w-8" />
+            <span className="text-xl font-bold">webTunes</span>
+          </div>
+          <div className="space-y-4">
+            <Button variant="ghost" className="w-full justify-start text-lg font-semibold">
+              <Home className="mr-3 h-5 w-5" />
+              Home
+            </Button>
+            <Button variant="ghost" className="w-full justify-start text-lg font-semibold">
+              <Heart className="mr-3 h-5 w-5" />
+              Liked
+            </Button>
+            <Button variant="ghost" className="w-full justify-start text-lg font-semibold">
+              <Library className="mr-3 h-5 w-5" />
+              Your Library
+            </Button>
+            <Button variant="ghost" className="w-full justify-start text-lg font-semibold">
+              <Settings className="mr-3 h-5 w-5" />
+              Settings
+            </Button>
+          </div>
 
-      <div className="row">
-        <a href="https://vitejs.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://reactjs.org" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+          <div className="mt-4 border-t border-gray-800 pt-4">
+            <h2 className="mb-4 px-3 text-sm font-semibold uppercase text-gray-400">PLAYLISTS</h2>
+            <div className="space-y-2">
+              <Button variant="ghost" className="w-full justify-start">2021 Greatest Songs</Button>
+              <Button variant="ghost" className="w-full justify-start">At Work</Button>
+              <Button variant="ghost" className="w-full justify-start">Playlist #2</Button>
+              <Button variant="ghost" className="w-full justify-start">Playlist #4</Button>
+              <Button variant="ghost" className="w-full justify-start">RapCaviar</Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="flex-1 bg-gradient-to-b from-gray-900 to-black min-h-screen ml-60">
+          {/* Top Bar */}
+          <div className="fixed top-0 left-60 right-0 flex items-center px-6 h-[72px] bg-black/50 backdrop-blur-sm z-10">
+            <div className="flex gap-2">
+              <Button variant="ghost" size="icon" className="bg-black/60 rounded-full">
+                <ChevronLeft className="h-5 w-5" />
+              </Button>
+              <Button variant="ghost" size="icon" className="bg-black/60 rounded-full">
+                <ChevronRight className="h-5 w-5" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Content Grid */}
+          <div className="p-6 mt-[72px]">
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold mb-6">From Artists You Like</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                {[
+                  { title: 'Be Happy', artist: 'Gene Evaro Jr.' },
+                  { title: 'Some Days', artist: 'Ira Wolf' },
+                  { title: 'Chime', artist: 'Alan Gogoll' },
+                  { title: 'Runaway', artist: 'Beast Coast' },
+                  { title: 'In Your Car', artist: 'No Aloha' }
+                ].map((item) => (
+                  <div key={item.title} className="bg-gray-800/30 p-3 rounded-lg hover:bg-gray-800/50 transition group">
+                    <div className="aspect-square bg-gray-700 rounded mb-3"></div>
+                    <h3 className="font-semibold truncate text-sm">{item.title}</h3>
+                    <p className="text-xs text-gray-400 truncate">{item.artist}</p>
+                    <Button 
+                      variant="secondary" 
+                      size="icon" 
+                      className="opacity-0 group-hover:opacity-100 transition bg-green-500 hover:bg-green-400 h-8 w-8 rounded-full mt-2 shadow-lg"
+                    >
+                      ↓
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <h2 className="text-2xl font-bold mb-6">Your Playlists</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {[
+                  { title: '2021 Greatest Songs', description: 'Your top tracks from 2021' },
+                  { title: 'At Work', description: 'Focus and productivity mix' },
+                  { title: 'Playlist #2', description: 'Your custom collection' },
+                  { title: 'RapCaviar', description: 'Hip-hop essentials' }
+                ].map((playlist) => (
+                  <div key={playlist.title} className="bg-gray-800/30 p-3 rounded-lg hover:bg-gray-800/50 transition group">
+                    <div className="aspect-square bg-gray-700 rounded mb-3"></div>
+                    <h3 className="font-semibold truncate text-sm">{playlist.title}</h3>
+                    <p className="text-xs text-gray-400 truncate">{playlist.description}</p>
+                    <Button 
+                      variant="secondary" 
+                      size="icon" 
+                      className="opacity-0 group-hover:opacity-100 transition bg-green-500 hover:bg-green-400 h-8 w-8 rounded-full mt-2 shadow-lg"
+                    >
+                      ↓
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
-
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>
+    </div>
   );
 }
 
