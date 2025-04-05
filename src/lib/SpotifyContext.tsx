@@ -16,6 +16,7 @@ interface Credentials {
 }
 
 
+
 interface SpotifyContextType {
   isAuthenticated: boolean;
   spotifyApi: SpotifyApi | null;
@@ -25,6 +26,9 @@ interface SpotifyContextType {
   likedTracks: SpotifyTrack[] | null;
   fetchLikedTracks: (forceRefresh?: boolean) => Promise<SpotifyTrack[]>;
   clearLikedTracksCache: () => void;
+
+  fetchPlaylistTracks: (playlistId: string, forceRefresh?: boolean) => Promise<SpotifyTrack[]>;
+  fetchAlbumTracks: (albumId: string, forceRefresh?: boolean) => Promise<SpotifyTrack[]>;
 }
 
 // Create the context with a default value
@@ -37,6 +41,9 @@ const SpotifyContext = createContext<SpotifyContextType>({
   likedTracks: null,
   fetchLikedTracks: async () => [],
   clearLikedTracksCache: () => {},
+
+  fetchPlaylistTracks: async () => [],
+  fetchAlbumTracks: async () => [],
 });
 
 // Custom hook to use the Spotify context
@@ -49,6 +56,9 @@ export const SpotifyProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   const [likedTracks, setLikedTracks] = useState<SpotifyTrack[] | null>(null);
 
+  const [playlistTracksCache] = useState<Map<string, SpotifyTrack[]>>(new Map());
+  const [albumTracksCache] = useState<Map<string, SpotifyTrack[]>>(new Map());
+
   const fetchLikedTracks = async (forceRefresh = false): Promise<SpotifyTrack[]> => {
     if (!forceRefresh && likedTracks) {
       return likedTracks;
@@ -60,6 +70,49 @@ export const SpotifyProvider: React.FC<{ children: ReactNode }> = ({ children })
       return tracks;
     } catch (error) {
       console.error('Failed to fetch liked tracks:', error);
+      throw error;
+    }
+  };
+
+  const fetchPlaylistTracks = async (playlistId: string, forceRefresh = false): Promise<SpotifyTrack[]> => {
+    if (!forceRefresh && playlistTracksCache.has(playlistId)) {
+      return playlistTracksCache.get(playlistId)!;
+    }
+    try {
+      const { getPlaylistTracks } = await import('./spotify');
+      const items = await getPlaylistTracks(playlistId);
+      const tracks = items.map(item => item.track as SpotifyTrack);
+      playlistTracksCache.set(playlistId, tracks);
+      return tracks;
+    } catch (error) {
+      console.error('Failed to fetch playlist tracks:', error);
+      throw error;
+    }
+  };
+
+  const fetchAlbumTracks = async (albumId: string, forceRefresh = false): Promise<SpotifyTrack[]> => {
+    if (!forceRefresh && albumTracksCache.has(albumId)) {
+      return albumTracksCache.get(albumId)!;
+    }
+    try {
+      const { getAlbumTracks, getAlbum } = await import('./spotify');
+      const albumTracksResponse = await getAlbumTracks(albumId);
+      const albumResponse = await getAlbum(albumId);
+      const tracks = albumTracksResponse.items.map(track => ({
+        id: track.id,
+        name: track.name,
+        artists: track.artists.map(artist => ({ id: artist.id, name: artist.name })),
+        album: {
+          id: albumId,
+          name: albumResponse.name,
+          images: albumResponse.images
+        },
+        duration_ms: track.duration_ms
+      }));
+      albumTracksCache.set(albumId, tracks);
+      return tracks;
+    } catch (error) {
+      console.error('Failed to fetch album tracks:', error);
       throw error;
     }
   };
@@ -152,6 +205,9 @@ export const SpotifyProvider: React.FC<{ children: ReactNode }> = ({ children })
     likedTracks,
     fetchLikedTracks,
     clearLikedTracksCache,
+
+    fetchPlaylistTracks,
+    fetchAlbumTracks,
   };
 
   return (

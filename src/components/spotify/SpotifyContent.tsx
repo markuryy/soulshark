@@ -2,14 +2,9 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Download, RefreshCw } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
-import SpotifyAuth from "./SpotifyAuth";
 import SpotifyTrackList from "./SpotifyTrackList";
-import { FixedSizeList as List } from "react-window";
 import { 
   getUserPlaylists, 
-  getLikedTracks,
-  getAllLikedTracks,
-  getPlaylistTracks,
   downloadLikedTracks,
   downloadPlaylist,
   downloadAlbum,
@@ -17,9 +12,7 @@ import {
   searchSpotify,
   getArtist,
   getArtistTopTracks,
-  getArtistAlbums,
-  getAlbum,
-  getAlbumTracks
+  getArtistAlbums
 } from "@/lib/spotify";
 import { Music } from "lucide-react";
 import { useSpotify } from "@/lib/SpotifyContext";
@@ -78,7 +71,7 @@ export default function SpotifyContent({
   onAlbumClick
 }: SpotifyContentProps) {
   // Use the global Spotify context
-  const { isAuthenticated, refreshAuthStatus, fetchLikedTracks, clearLikedTracksCache } = useSpotify();
+  const { isAuthenticated, refreshAuthStatus, fetchLikedTracks, fetchPlaylistTracks, fetchAlbumTracks } = useSpotify();
   
   const [isLoading, setIsLoading] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState<{loaded: number; total: number} | null>(null);
@@ -213,13 +206,12 @@ export default function SpotifyContent({
 
   // Load liked tracks
   const loadLikedTracks = async (forceRefresh = false) => {
-    try {
-      setIsLoading(true);
-      setLoadingProgress(null);
+    setIsLoading(true);
+    setLoadingProgress(null);
 
+    try {
       const likedTracksPromise = fetchLikedTracks(forceRefresh);
 
-      // Optional: show progress bar only if forceRefresh (full fetch)
       if (forceRefresh) {
         const { getAllLikedTracks } = await import('@/lib/spotify');
         const allTracks = await getAllLikedTracks(50, (loaded, total) => {
@@ -231,7 +223,6 @@ export default function SpotifyContent({
         setTracks(cachedTracks);
       }
 
-      // Apply limit if specified
       if (limit && limit > 0 && tracks.length > limit) {
         setTracks(tracks.slice(0, limit));
       }
@@ -247,49 +238,51 @@ export default function SpotifyContent({
       }
 
       throw error;
+    } finally {
+      setIsLoading(false);
     }
   };
 
   // Load playlist tracks
-  const loadPlaylistTracks = async (playlistId: string) => {
+  const loadPlaylistTracks = async (playlistId: string, forceRefresh = false) => {
     try {
-      const playlistTracksResponse = await getPlaylistTracks(playlistId);
-      let tracksToDisplay = playlistTracksResponse.map(item => item.track as SpotifyTrack);
-      
-      // Apply limit if specified
+      setIsLoading(true);
+
+      const playlistTracksResponse = await fetchPlaylistTracks(playlistId, forceRefresh);
+
+      let tracksToDisplay = playlistTracksResponse;
+
       if (limit && limit > 0 && tracksToDisplay.length > limit) {
         tracksToDisplay = tracksToDisplay.slice(0, limit);
       }
-      
+
       setTracks(tracksToDisplay);
-      
-      // Get playlist details from the first track's context
-      if (playlistTracksResponse.length > 0) {
-        // This is a simplified approach - in a real app, you'd fetch the playlist details
-        const playlists = await getUserPlaylists();
-        const foundPlaylist = playlists.find(p => p.id === playlistId);
-        if (foundPlaylist) {
-          // Convert to our SpotifyPlaylist type
-          setPlaylist({
-            id: foundPlaylist.id,
-            name: foundPlaylist.name,
-            description: foundPlaylist.description || "",
-            images: foundPlaylist.images || [],
-            tracks: {
-              total: foundPlaylist.tracks?.total || playlistTracksResponse.length
-            }
-          });
-        }
+
+      // Fetch playlist metadata (optional, simplified)
+      const playlists = await getUserPlaylists();
+      const foundPlaylist = playlists.find(p => p.id === playlistId);
+      if (foundPlaylist) {
+        setPlaylist({
+          id: foundPlaylist.id,
+          name: foundPlaylist.name,
+          description: foundPlaylist.description || "",
+          images: foundPlaylist.images || [],
+          tracks: {
+            total: foundPlaylist.tracks?.total || tracksToDisplay.length
+          }
+        });
       }
+
+      setIsLoading(false);
     } catch (error) {
       console.error("Failed to load playlist tracks:", error);
-      
-      // If we get an authentication error, refresh auth status
+      setIsLoading(false);
+
       if (error instanceof Error && error.message.includes("authentication")) {
         resetSpotifyApi();
         refreshAuthStatus();
       }
-      
+
       throw error;
     }
   };
@@ -350,45 +343,35 @@ export default function SpotifyContent({
   };
   
   // Load album tracks
-  const loadAlbumTracks = async (albumId: string) => {
+  const loadAlbumTracks = async (albumId: string, forceRefresh = false) => {
     try {
-      const albumResponse = await getAlbum(albumId);
-      const albumTracksResponse = await getAlbumTracks(albumId);
-      
-      // Store album info
-      setAlbums([albumResponse]);
-      
-      // Convert to our SpotifyTrack format
-      const tracksToDisplay = albumTracksResponse.items.map(track => ({
-        id: track.id,
-        name: track.name,
-        artists: track.artists.map(artist => ({
-          id: artist.id,
-          name: artist.name
-        })),
-        album: {
-          id: albumId,
-          name: albumResponse.name,
-          images: albumResponse.images
-        },
-        duration_ms: track.duration_ms
-      }));
-      
-      // Apply limit if specified
+      setIsLoading(true);
+
+      const albumTracksResponse = await fetchAlbumTracks(albumId, forceRefresh);
+
+      let tracksToDisplay = albumTracksResponse;
+
       if (limit && limit > 0 && tracksToDisplay.length > limit) {
-        setTracks(tracksToDisplay.slice(0, limit));
-      } else {
-        setTracks(tracksToDisplay);
+        tracksToDisplay = tracksToDisplay.slice(0, limit);
       }
+
+      setTracks(tracksToDisplay);
+
+      // Fetch album metadata
+      const { getAlbum } = await import('@/lib/spotify');
+      const albumResponse = await getAlbum(albumId);
+      setAlbums([albumResponse]);
+
+      setIsLoading(false);
     } catch (error) {
       console.error("Failed to load album tracks:", error);
-      
-      // If we get an authentication error, refresh auth status
+      setIsLoading(false);
+
       if (error instanceof Error && error.message.includes("authentication")) {
         resetSpotifyApi();
         refreshAuthStatus();
       }
-      
+
       throw error;
     }
   };
@@ -537,21 +520,37 @@ export default function SpotifyContent({
               <h2 className="text-2xl font-bold">{playlist.name}</h2>
               {playlist.description && <p className="text-gray-400 mt-1">{playlist.description}</p>}
             </div>
-            <Button 
-              onClick={handleDownloadAll}
-              disabled={isDownloading || tracks.length === 0}
-              className="bg-green-600 hover:bg-green-700"
-              title="Save all tracks"
-            >
-              {isDownloading ? (
-                <div className="flex items-center">
-                  <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
+            <div className="flex gap-2">
+              <Tooltip>
+                <TooltipTrigger>
+                  <Button
+                    onClick={() => playlistId && loadPlaylistTracks(playlistId, true)}
+                    disabled={isLoading}
+                    className="bg-blue-600 hover:bg-blue-700 p-2"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Refresh playlist from Spotify
+                </TooltipContent>
+              </Tooltip>
+              <Button 
+                onClick={handleDownloadAll}
+                disabled={isDownloading || tracks.length === 0}
+                className="bg-green-600 hover:bg-green-700"
+                title="Save all tracks"
+              >
+                {isDownloading ? (
+                  <div className="flex items-center">
+                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
+                    <Download className="h-4 w-4" />
+                  </div>
+                ) : (
                   <Download className="h-4 w-4" />
-                </div>
-              ) : (
-                <Download className="h-4 w-4" />
-              )}
-            </Button>
+                )}
+              </Button>
+            </div>
           </div>
           <SpotifyTrackList 
             tracks={tracks}
@@ -669,13 +668,29 @@ export default function SpotifyContent({
                 ))}
               </div>
               <p className="text-gray-400 mt-1">{albums[0].total_tracks} tracks • {new Date(albums[0].release_date).getFullYear()}</p>
-              <Button 
-                onClick={() => downloadAlbum(albums[0].id)}
-                className="mt-4 bg-green-600 hover:bg-green-700"
-                title="Save album"
-              >
-                <Download className="h-4 w-4" />
-              </Button>
+              <div className="flex gap-2 mt-4">
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Button
+                      onClick={() => albumId && loadAlbumTracks(albumId, true)}
+                      disabled={isLoading}
+                      className="bg-blue-600 hover:bg-blue-700 p-2"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Refresh album from Spotify
+                  </TooltipContent>
+                </Tooltip>
+                <Button 
+                  onClick={() => downloadAlbum(albums[0].id)}
+                  className="bg-green-600 hover:bg-green-700"
+                  title="Save album"
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </div>
           
