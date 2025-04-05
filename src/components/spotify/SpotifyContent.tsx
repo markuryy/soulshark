@@ -4,7 +4,6 @@ import { Download } from "lucide-react";
 import SpotifyAuth from "./SpotifyAuth";
 import SpotifyTrackList from "./SpotifyTrackList";
 import { 
-  initializeSpotify, 
   getUserPlaylists, 
   getLikedTracks, 
   getPlaylistTracks,
@@ -20,6 +19,7 @@ import {
   getAlbumTracks
 } from "@/lib/spotify";
 import { Music } from "lucide-react";
+import { useSpotify } from "@/lib/SpotifyContext";
 
 // Types
 interface SpotifyTrack {
@@ -74,7 +74,9 @@ export default function SpotifyContent({
   onArtistClick,
   onAlbumClick
 }: SpotifyContentProps) {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  // Use the global Spotify context
+  const { isAuthenticated, refreshAuthStatus } = useSpotify();
+  
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tracks, setTracks] = useState<SpotifyTrack[]>([]);
@@ -83,34 +85,21 @@ export default function SpotifyContent({
   const [isDownloading, setIsDownloading] = useState(false);
   const [artistInfo, setArtistInfo] = useState<{name: string; images: {url: string}[]} | null>(null);
 
-  // Check authentication and load data on mount
+  // Load data on mount and when props change
   useEffect(() => {
-    checkAuthAndLoadData();
-  }, [contentType, playlistId, searchQuery, artistId, albumId]);
-
-  // Check if authenticated with Spotify and load data
-  const checkAuthAndLoadData = async () => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const spotify = await initializeSpotify();
-      if (spotify) {
-        setIsAuthenticated(true);
-        await loadContent();
-      } else {
-        setIsAuthenticated(false);
-      }
-    } catch (error) {
-      console.error("Failed to initialize Spotify:", error);
-      setError(`Failed to initialize Spotify: ${error instanceof Error ? error.message : String(error)}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    loadContent();
+  }, [contentType, playlistId, searchQuery, artistId, albumId, isAuthenticated]);
 
   // Load content based on contentType
   const loadContent = async () => {
+    if (!isAuthenticated) {
+      setIsLoading(false);
+      return;
+    }
+    
+    setIsLoading(true);
+    setError(null);
+
     try {
       switch (contentType) {
         case 'liked':
@@ -140,6 +129,14 @@ export default function SpotifyContent({
     } catch (error) {
       console.error("Failed to load content:", error);
       setError(`Failed to load content: ${error instanceof Error ? error.message : String(error)}`);
+      
+      // If we get an authentication error, refresh auth status
+      if (error instanceof Error && error.message.includes("authentication")) {
+        resetSpotifyApi();
+        refreshAuthStatus();
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
   
@@ -200,10 +197,10 @@ export default function SpotifyContent({
     } catch (error) {
       console.error("Failed to search Spotify:", error);
       
-      // If we get an authentication error, reset the Spotify API instance
+      // If we get an authentication error, refresh auth status
       if (error instanceof Error && error.message.includes("authentication")) {
         resetSpotifyApi();
-        setIsAuthenticated(false);
+        refreshAuthStatus();
       }
       
       throw error;
@@ -225,10 +222,10 @@ export default function SpotifyContent({
     } catch (error) {
       console.error("Failed to load liked tracks:", error);
       
-      // If we get an authentication error, reset the Spotify API instance
+      // If we get an authentication error, refresh auth status
       if (error instanceof Error && error.message.includes("authentication")) {
         resetSpotifyApi();
-        setIsAuthenticated(false);
+        refreshAuthStatus();
       }
       
       throw error;
@@ -269,10 +266,10 @@ export default function SpotifyContent({
     } catch (error) {
       console.error("Failed to load playlist tracks:", error);
       
-      // If we get an authentication error, reset the Spotify API instance
+      // If we get an authentication error, refresh auth status
       if (error instanceof Error && error.message.includes("authentication")) {
         resetSpotifyApi();
-        setIsAuthenticated(false);
+        refreshAuthStatus();
       }
       
       throw error;
@@ -324,10 +321,10 @@ export default function SpotifyContent({
     } catch (error) {
       console.error("Failed to load artist tracks:", error);
       
-      // If we get an authentication error, reset the Spotify API instance
+      // If we get an authentication error, refresh auth status
       if (error instanceof Error && error.message.includes("authentication")) {
         resetSpotifyApi();
-        setIsAuthenticated(false);
+        refreshAuthStatus();
       }
       
       throw error;
@@ -368,10 +365,10 @@ export default function SpotifyContent({
     } catch (error) {
       console.error("Failed to load album tracks:", error);
       
-      // If we get an authentication error, reset the Spotify API instance
+      // If we get an authentication error, refresh auth status
       if (error instanceof Error && error.message.includes("authentication")) {
         resetSpotifyApi();
-        setIsAuthenticated(false);
+        refreshAuthStatus();
       }
       
       throw error;
@@ -436,7 +433,7 @@ export default function SpotifyContent({
           <h3 className="text-lg font-medium text-red-400 mb-2">Error Loading Content</h3>
           <p className="text-red-300">{error}</p>
           <Button 
-            onClick={checkAuthAndLoadData} 
+            onClick={loadContent} 
             className="mt-4 bg-red-700 hover:bg-red-600"
           >
             Retry

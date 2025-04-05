@@ -6,6 +6,8 @@ use serde::Serialize;
 use tauri_plugin_shell::{ShellExt, process::CommandEvent};
 use uuid::Uuid;
 use regex::Regex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 #[tauri::command]
 pub async fn execute_sldl(
@@ -17,14 +19,29 @@ pub async fn execute_sldl(
     artist: Option<String>,
     album: Option<String>,
 ) -> Result<String, String> {
+    // Check if this is a Spotify playlist
+    let is_playlist = query.contains("spotify:") || query.contains("spotify.com/playlist") || query == "spotify-likes";
+    
     // Create a new download entry
-    let download_title = title.clone().unwrap_or_else(|| query.clone());
+    let download_title = title.clone().unwrap_or_else(|| {
+        if is_playlist {
+            // For playlists, use a better default title than the URL
+            if query == "spotify-likes" {
+                "Spotify Liked Songs".to_string()
+            } else {
+                "Spotify Playlist (Loading...)".to_string()
+            }
+        } else {
+            query.clone()
+        }
+    });
+    
     let download = Download::new(
         download_title,
         artist.clone(),
         album.clone(),
         query.clone(),
-        query.contains("spotify:") || query.contains("spotify.com/playlist") || query == "spotify-likes"
+        is_playlist
     );
     
     // Get the download ID
@@ -137,12 +154,22 @@ pub async fn execute_sldl(
     let download_id_clone = download_id.clone();
     let download_manager_state = state.0.clone();
     
+    // Flag to track if we're processing a playlist
+    let is_playlist_download = Arc::new(AtomicBool::new(false));
+    let is_playlist_clone = is_playlist_download.clone();
+    
     // Handle command output in a separate task
     tauri::async_runtime::spawn(async move {
         // Compile regex patterns for parsing progress
+        let playlist_re = Regex::new(r"Downloading (\d+) tracks:").unwrap();
+        let loading_playlist_re = Regex::new(r"Loading Spotify playlist").unwrap();
+        let playlist_name_re = Regex::new(r"Playlist: (.+) by (.+)").unwrap();
+        let searching_re = Regex::new(r"Searching: (.+)").unwrap();
         let initialize_re = Regex::new(r"Initialize:\s+(.+)\s+\[(\d+)s/(\d+)kbps/([0-9.]+)MB\]").unwrap();
         let progress_re = Regex::new(r"InProgress:\s+(.+)\s+\[(\d+)s/(\d+)kbps/([0-9.]+)MB\]").unwrap();
         let success_re = Regex::new(r"Succeeded:\s+(.+)\s+\[(\d+)s/(\d+)kbps/([0-9.]+)MB\]").unwrap();
+        let completed_re = Regex::new(r"Completed: (\d+) succeeded, (\d+) failed").unwrap();
+        let not_found_re = Regex::new(r"Not found: (.+)").unwrap();
         
         while let Some(event) = rx.recv().await {
             match event {
@@ -150,28 +177,114 @@ pub async fn execute_sldl(
                     let line_str = String::from_utf8_lossy(&line).to_string();
                     println!("sldl stdout: {}", line_str);
                     
+                    // Add to download's console logs
+                    if let Ok(mut download_manager) = download_manager_state.lock() {
+                        if let Some(download) = download_manager.get_download_mut(&download_id_clone) {
+                            download.add_console_log(line_str.clone());
+                        }
+                    }
+                    
                     // Emit stdout event to the frontend
                     let _ = app_handle_clone.emit("sldl:stdout", line_str.clone());
                     
-                    // Update download status based on output
-                    if initialize_re.is_match(&line_str) {
+                    // Check if this is a playlist download
+                    if let Some(caps) = playlist_re.captures(&line_str) {
+                        if let Some(count_match) = caps.get(1) {
+                            if let Ok(track_count) = count_match.as_str().parse::<usize>() {
+                                is_playlist_clone.store(true, Ordering::SeqCst);
+                                
+                                // Update download with playlist info
+                                if let Ok(mut download_manager) = download_manager_state.lock() {
+                                    if let Some(download) = download_manager.get_download_mut(&download_id_clone) {
+                                        download.set_playlist_info(track_count);
+                                        
+                                        // Emit progress event
+                                        let download_clone = download.clone();
+                                        emit_download_event(&app_handle_clone, "download:progress", &download_clone);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Check for loading playlist message
+                    else if loading_playlist_re.is_match(&line_str) {
+                        if let Ok(mut download_manager) = download_manager_state.lock() {
+                            if let Some(download) = download_manager.get_download_mut(&download_id_clone) {
+                                download.update_status(DownloadStatus::Searching);
+                                
+                                // Emit progress event
+                                let download_clone = download.clone();
+                                emit_download_event(&app_handle_clone, "download:progress", &download_clone);
+                            }
+                        }
+                    }
+                    
+                    // Check for playlist name
+                    else if let Some(caps) = playlist_name_re.captures(&line_str) {
+                        if let (Some(playlist_name), Some(creator)) = (caps.get(1), caps.get(2)) {
+                            if let Ok(mut download_manager) = download_manager_state.lock() {
+                                if let Some(download) = download_manager.get_download_mut(&download_id_clone) {
+                                    // Update the download title with the actual playlist name
+                                    download.title = format!("{} by {}", playlist_name.as_str(), creator.as_str());
+                                    
+                                    // Emit progress event
+                                    let download_clone = download.clone();
+                                    emit_download_event(&app_handle_clone, "download:progress", &download_clone);
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Check for searching status
+                    else if let Some(caps) = searching_re.captures(&line_str) {
+                        if let Ok(mut download_manager) = download_manager_state.lock() {
+                            if let Some(download) = download_manager.get_download_mut(&download_id_clone) {
+                                download.update_status(DownloadStatus::Searching);
+                                
+                                // If this is a single track download, update the title with the actual track name
+                                if !download.is_playlist {
+                                    if let Some(track_name) = caps.get(1) {
+                                        download.title = track_name.as_str().to_string();
+                                    }
+                                }
+                                
+                                // Emit progress event
+                                let download_clone = download.clone();
+                                emit_download_event(&app_handle_clone, "download:progress", &download_clone);
+                            }
+                        }
+                    }
+                    
+                    // Check for initialize status
+                    else if initialize_re.is_match(&line_str) {
                         // Update status to InProgress
                         if let Ok(mut download_manager) = download_manager_state.lock() {
                             if let Some(download) = download_manager.get_download_mut(&download_id_clone) {
                                 download.update_status(DownloadStatus::InProgress);
-                                download.update_progress(0.0);
+                                
+                                // Only set progress to 0 for single downloads
+                                // For playlists, we track progress by completed/total
+                                if !download.is_playlist {
+                                    download.update_progress(0.0);
+                                }
                                 
                                 // Emit progress event
                                 let download_clone = download.clone();
                                 emit_download_event(&app_handle_clone, "download:progress", &download_clone);
                             }
                         }
-                    } else if let Some(caps) = progress_re.captures(&line_str) {
-                        // Extract file path and update progress (using a simple heuristic for now)
+                    }
+                    
+                    // Check for in progress status
+                    else if let Some(caps) = progress_re.captures(&line_str) {
+                        // Extract file path and update progress
                         if let Ok(mut download_manager) = download_manager_state.lock() {
                             if let Some(download) = download_manager.get_download_mut(&download_id_clone) {
-                                // Set progress to 0.5 (50%) as a simple approximation
-                                download.update_progress(0.5);
+                                // For single downloads, set progress to 0.5 (50%)
+                                if !download.is_playlist {
+                                    download.update_progress(0.5);
+                                }
                                 
                                 // Extract file path if available
                                 if let Some(file_path) = caps.get(1) {
@@ -183,21 +296,76 @@ pub async fn execute_sldl(
                                 emit_download_event(&app_handle_clone, "download:progress", &download_clone);
                             }
                         }
-                    } else if let Some(caps) = success_re.captures(&line_str) {
-                        // Update status to Completed
+                    }
+                    
+                    // Check for not found status
+                    else if let Some(caps) = not_found_re.captures(&line_str) {
                         if let Ok(mut download_manager) = download_manager_state.lock() {
                             if let Some(download) = download_manager.get_download_mut(&download_id_clone) {
-                                download.update_status(DownloadStatus::Completed);
-                                download.update_progress(1.0);
+                                // For playlists, increment failed tracks
+                                if download.is_playlist {
+                                    download.increment_failed_tracks();
+                                    
+                                    // Emit progress event
+                                    let download_clone = download.clone();
+                                    emit_download_event(&app_handle_clone, "download:progress", &download_clone);
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Check for success status
+                    else if let Some(caps) = success_re.captures(&line_str) {
+                        if let Ok(mut download_manager) = download_manager_state.lock() {
+                            if let Some(download) = download_manager.get_download_mut(&download_id_clone) {
+                                // For playlists, increment completed tracks
+                                if download.is_playlist {
+                                    download.increment_completed_tracks();
+                                } else {
+                                    // For single downloads, mark as completed
+                                    download.update_status(DownloadStatus::Completed);
+                                    download.update_progress(1.0);
+                                }
                                 
                                 // Extract file path if available
                                 if let Some(file_path) = caps.get(1) {
                                     download.set_file_path(file_path.as_str().to_string());
                                 }
                                 
-                                // Emit completed event
+                                // Emit progress or completed event
                                 let download_clone = download.clone();
-                                emit_download_event(&app_handle_clone, "download:completed", &download_clone);
+                                
+                                if download.is_playlist {
+                                    emit_download_event(&app_handle_clone, "download:progress", &download_clone);
+                                } else {
+                                    emit_download_event(&app_handle_clone, "download:completed", &download_clone);
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Check for playlist completion
+                    else if let Some(caps) = completed_re.captures(&line_str) {
+                        if let (Some(succeeded), Some(failed)) = (caps.get(1), caps.get(2)) {
+                            if let (Ok(succeeded_count), Ok(failed_count)) = (
+                                succeeded.as_str().parse::<usize>(),
+                                failed.as_str().parse::<usize>()
+                            ) {
+                                if let Ok(mut download_manager) = download_manager_state.lock() {
+                                    if let Some(download) = download_manager.get_download_mut(&download_id_clone) {
+                                        // Update final counts
+                                        download.completed_tracks = Some(succeeded_count);
+                                        download.failed_tracks = Some(failed_count);
+                                        
+                                        // Mark as completed
+                                        download.update_status(DownloadStatus::Completed);
+                                        download.update_progress(1.0);
+                                        
+                                        // Emit completed event
+                                        let download_clone = download.clone();
+                                        emit_download_event(&app_handle_clone, "download:completed", &download_clone);
+                                    }
+                                }
                             }
                         }
                     }
@@ -205,6 +373,13 @@ pub async fn execute_sldl(
                 CommandEvent::Stderr(line) => {
                     let line_str = String::from_utf8_lossy(&line).to_string();
                     eprintln!("sldl stderr: {}", line_str);
+                    
+                    // Add to download's console logs
+                    if let Ok(mut download_manager) = download_manager_state.lock() {
+                        if let Some(download) = download_manager.get_download_mut(&download_id_clone) {
+                            download.add_console_log(format!("ERROR: {}", line_str.clone()));
+                        }
+                    }
                     
                     // Emit stderr event to the frontend
                     let _ = app_handle_clone.emit("sldl:stderr", line_str);
@@ -225,6 +400,23 @@ pub async fn execute_sldl(
                                 // Emit failed event
                                 let download_clone = download.clone();
                                 emit_download_event(&app_handle_clone, "download:failed", &download_clone);
+                            }
+                        }
+                    } else {
+                        // If command succeeded but we didn't get a completion message for a playlist
+                        // (this is a fallback in case we miss the "Completed: X succeeded, Y failed" message)
+                        if is_playlist_clone.load(Ordering::SeqCst) {
+                            if let Ok(mut download_manager) = download_manager_state.lock() {
+                                if let Some(download) = download_manager.get_download_mut(&download_id_clone) {
+                                    if download.status != DownloadStatus::Completed {
+                                        download.update_status(DownloadStatus::Completed);
+                                        download.update_progress(1.0);
+                                        
+                                        // Emit completed event
+                                        let download_clone = download.clone();
+                                        emit_download_event(&app_handle_clone, "download:completed", &download_clone);
+                                    }
+                                }
                             }
                         }
                     }

@@ -8,6 +8,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum DownloadStatus {
     Queued,
+    Searching,
     InProgress,
     Completed,
     Failed(String),
@@ -27,6 +28,10 @@ pub struct Download {
     pub progress: Option<f32>,
     pub file_path: Option<String>,
     pub is_playlist: bool,
+    pub total_tracks: Option<usize>,
+    pub completed_tracks: Option<usize>,
+    pub failed_tracks: Option<usize>,
+    pub console_logs: Vec<String>,
 }
 
 impl Download {
@@ -42,6 +47,10 @@ impl Download {
             progress: None,
             file_path: None,
             is_playlist,
+            total_tracks: None,
+            completed_tracks: None,
+            failed_tracks: None,
+            console_logs: Vec::new(),
         }
     }
 
@@ -55,6 +64,43 @@ impl Download {
 
     pub fn set_file_path(&mut self, path: String) {
         self.file_path = Some(path);
+    }
+    
+    pub fn add_console_log(&mut self, log: String) {
+        self.console_logs.push(log);
+        // Keep only the last 100 logs to prevent excessive memory usage
+        if self.console_logs.len() > 100 {
+            self.console_logs.remove(0);
+        }
+    }
+    
+    pub fn set_playlist_info(&mut self, total: usize) {
+        self.total_tracks = Some(total);
+        self.completed_tracks = Some(0);
+        self.failed_tracks = Some(0);
+    }
+    
+    pub fn increment_completed_tracks(&mut self) {
+        if let Some(completed) = self.completed_tracks {
+            self.completed_tracks = Some(completed + 1);
+            self.update_playlist_progress();
+        }
+    }
+    
+    pub fn increment_failed_tracks(&mut self) {
+        if let Some(failed) = self.failed_tracks {
+            self.failed_tracks = Some(failed + 1);
+            self.update_playlist_progress();
+        }
+    }
+    
+    fn update_playlist_progress(&mut self) {
+        if let (Some(completed), Some(failed), Some(total)) = (self.completed_tracks, self.failed_tracks, self.total_tracks) {
+            if total > 0 {
+                let progress = (completed + failed) as f32 / total as f32;
+                self.update_progress(progress);
+            }
+        }
     }
 }
 
@@ -107,6 +153,32 @@ impl DownloadManager {
             }
             None => Err(format!("Download with id {} not found", id)),
         }
+    }
+    
+    pub fn remove_download(&mut self, id: &str) -> Option<Download> {
+        self.downloads.remove(id)
+    }
+    
+    pub fn clear_completed_downloads(&mut self) -> usize {
+        let completed_ids: Vec<String> = self.downloads
+            .iter()
+            .filter(|(_, download)| {
+                matches!(download.status, 
+                    DownloadStatus::Completed | 
+                    DownloadStatus::Canceled | 
+                    DownloadStatus::Failed(_)
+                )
+            })
+            .map(|(id, _)| id.clone())
+            .collect();
+        
+        let count = completed_ids.len();
+        
+        for id in completed_ids {
+            self.downloads.remove(&id);
+        }
+        
+        count
     }
 }
 

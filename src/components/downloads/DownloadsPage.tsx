@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { Button } from "@/components/ui/button";
-import { X, RefreshCw, Download, CheckCircle, AlertCircle } from "lucide-react";
+import { X, RefreshCw, Download, CheckCircle, AlertCircle, Search, ChevronDown, ChevronUp, Terminal } from "lucide-react";
 
 // Types
 interface Download {
@@ -12,15 +12,20 @@ interface Download {
   album?: string;
   query: string;
   started_at: number;
-  status: "Queued" | "InProgress" | "Completed" | { Failed: string } | "Canceled";
+  status: "Queued" | "Searching" | "InProgress" | "Completed" | { Failed: string } | "Canceled";
   progress?: number;
   file_path?: string;
   is_playlist: boolean;
+  total_tracks?: number;
+  completed_tracks?: number;
+  failed_tracks?: number;
+  console_logs: string[];
 }
 
 export default function DownloadsPage() {
   const [downloads, setDownloads] = useState<Download[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [expandedLogs, setExpandedLogs] = useState<Record<string, boolean>>({});
 
   // Load downloads on mount
   useEffect(() => {
@@ -28,10 +33,12 @@ export default function DownloadsPage() {
     
     // Set up event listeners
     const unlisten1 = listen<Download>("download:started", (event) => {
+      console.log("Download started:", event.payload);
       setDownloads(prev => [event.payload, ...prev]);
     });
     
     const unlisten2 = listen<Download>("download:progress", (event) => {
+      console.log("Download progress:", event.payload);
       setDownloads(prev => 
         prev.map(download => 
           download.id === event.payload.id ? event.payload : download
@@ -40,6 +47,7 @@ export default function DownloadsPage() {
     });
     
     const unlisten3 = listen<Download>("download:completed", (event) => {
+      console.log("Download completed:", event.payload);
       setDownloads(prev => 
         prev.map(download => 
           download.id === event.payload.id ? event.payload : download
@@ -48,6 +56,7 @@ export default function DownloadsPage() {
     });
     
     const unlisten4 = listen<Download>("download:failed", (event) => {
+      console.log("Download failed:", event.payload);
       setDownloads(prev => 
         prev.map(download => 
           download.id === event.payload.id ? event.payload : download
@@ -56,10 +65,28 @@ export default function DownloadsPage() {
     });
     
     const unlisten5 = listen<Download>("download:canceled", (event) => {
+      console.log("Download canceled:", event.payload);
       setDownloads(prev => 
         prev.map(download => 
           download.id === event.payload.id ? event.payload : download
         )
+      );
+    });
+    
+    // Also listen for stdout events to update console logs in real-time
+    const unlisten6 = listen<string>("sldl:stdout", (event) => {
+      console.log("SLDL stdout:", event.payload);
+      // Update the console logs for all active downloads
+      setDownloads(prev => 
+        prev.map(download => {
+          if (download.status === "Queued" || download.status === "Searching" || download.status === "InProgress") {
+            return {
+              ...download,
+              console_logs: [...download.console_logs, event.payload]
+            };
+          }
+          return download;
+        })
       );
     });
     
@@ -70,6 +97,7 @@ export default function DownloadsPage() {
       unlisten3.then(fn => fn());
       unlisten4.then(fn => fn());
       unlisten5.then(fn => fn());
+      unlisten6.then(fn => fn());
     };
   }, []);
   
@@ -111,11 +139,34 @@ export default function DownloadsPage() {
     return new Date(timestamp * 1000).toLocaleString();
   };
   
+  // Toggle console logs visibility
+  const toggleLogs = (id: string) => {
+    setExpandedLogs(prev => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
+  };
+
   // Get status display
-  const getStatusDisplay = (status: Download["status"]) => {
+  const getStatusDisplay = (download: Download) => {
+    const { status, is_playlist, completed_tracks, total_tracks, failed_tracks } = download;
+    
     if (status === "Queued") return "Queued";
-    if (status === "InProgress") return "Downloading";
-    if (status === "Completed") return "Completed";
+    if (status === "Searching") return "Searching";
+    if (status === "InProgress") {
+      if (is_playlist && total_tracks) {
+        const completed = completed_tracks || 0;
+        const failed = failed_tracks || 0;
+        return `Downloading (${completed + failed}/${total_tracks})`;
+      }
+      return "Downloading";
+    }
+    if (status === "Completed") {
+      if (is_playlist && completed_tracks && failed_tracks) {
+        return `Completed: ${completed_tracks} succeeded, ${failed_tracks} failed`;
+      }
+      return "Completed";
+    }
     if (status === "Canceled") return "Canceled";
     if (typeof status === "object" && "Failed" in status) return `Failed: ${status.Failed}`;
     return "Unknown";
@@ -124,6 +175,7 @@ export default function DownloadsPage() {
   // Get status icon
   const getStatusIcon = (status: Download["status"]) => {
     if (status === "Queued") return <Download className="h-4 w-4 text-gray-400" />;
+    if (status === "Searching") return <Search className="h-4 w-4 text-yellow-400" />;
     if (status === "InProgress") return <RefreshCw className="h-4 w-4 text-blue-400 animate-spin" />;
     if (status === "Completed") return <CheckCircle className="h-4 w-4 text-green-400" />;
     if (status === "Canceled") return <X className="h-4 w-4 text-gray-400" />;
@@ -133,7 +185,7 @@ export default function DownloadsPage() {
   
   // Get active downloads
   const activeDownloads = downloads.filter(d => 
-    d.status === "Queued" || d.status === "InProgress"
+    d.status === "Queued" || d.status === "Searching" || d.status === "InProgress"
   );
   
   // Get completed downloads
@@ -196,7 +248,7 @@ export default function DownloadsPage() {
                     <div className="flex items-center gap-2 text-sm text-gray-400">
                       <span className="flex items-center gap-1">
                         {getStatusIcon(download.status)}
-                        {getStatusDisplay(download.status)}
+                        {getStatusDisplay(download)}
                       </span>
                       <span>•</span>
                       <span>Started: {formatTimestamp(download.started_at)}</span>
@@ -210,9 +262,54 @@ export default function DownloadsPage() {
                             style={{ width: `${download.progress * 100}%` }}
                           />
                         </div>
-                        <div className="text-right text-xs text-gray-400 mt-1">
-                          {Math.round(download.progress * 100)}%
+                        <div className="flex justify-between text-xs text-gray-400 mt-1">
+                          {download.is_playlist && download.total_tracks ? (
+                            <span>
+                              {download.completed_tracks || 0} of {download.total_tracks} tracks
+                            </span>
+                          ) : (
+                            <span></span>
+                          )}
+                          <span>{Math.round(download.progress * 100)}%</span>
                         </div>
+                      </div>
+                    )}
+                    
+                    {/* Console logs toggle button */}
+                    {download.console_logs && download.console_logs.length > 0 && (
+                      <div className="mt-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs flex items-center gap-1 text-gray-400 hover:text-white"
+                          onClick={() => toggleLogs(download.id)}
+                        >
+                          <Terminal className="h-3 w-3" />
+                          {expandedLogs[download.id] ? (
+                            <>
+                              <span>Hide Logs</span>
+                              <ChevronUp className="h-3 w-3" />
+                            </>
+                          ) : (
+                            <>
+                              <span>View Logs</span>
+                              <ChevronDown className="h-3 w-3" />
+                            </>
+                          )}
+                        </Button>
+                        
+                        {expandedLogs[download.id] && (
+                          <div className="mt-2 bg-black rounded-md p-2 max-h-40 overflow-y-auto text-xs font-mono">
+                            {download.console_logs.map((log, index) => (
+                              <div 
+                                key={index} 
+                                className={`whitespace-pre-wrap ${log.startsWith('ERROR:') ? 'text-red-400' : 'text-gray-300'}`}
+                              >
+                                {log}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -255,11 +352,49 @@ export default function DownloadsPage() {
                         <div className="flex items-center gap-2 text-sm text-gray-400 mt-1">
                           <span className="flex items-center gap-1">
                             {getStatusIcon(download.status)}
-                            {getStatusDisplay(download.status)}
+                            {getStatusDisplay(download)}
                           </span>
                           <span>•</span>
                           <span>Completed: {formatTimestamp(download.started_at)}</span>
                         </div>
+                        
+                        {/* Console logs toggle button for completed downloads */}
+                        {download.console_logs && download.console_logs.length > 0 && (
+                          <div className="mt-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-xs flex items-center gap-1 text-gray-400 hover:text-white"
+                              onClick={() => toggleLogs(download.id)}
+                            >
+                              <Terminal className="h-3 w-3" />
+                              {expandedLogs[download.id] ? (
+                                <>
+                                  <span>Hide Logs</span>
+                                  <ChevronUp className="h-3 w-3" />
+                                </>
+                              ) : (
+                                <>
+                                  <span>View Logs</span>
+                                  <ChevronDown className="h-3 w-3" />
+                                </>
+                              )}
+                            </Button>
+                            
+                            {expandedLogs[download.id] && (
+                              <div className="mt-2 bg-black rounded-md p-2 max-h-40 overflow-y-auto text-xs font-mono">
+                                {download.console_logs.map((log, index) => (
+                                  <div 
+                                    key={index} 
+                                    className={`whitespace-pre-wrap ${log.startsWith('ERROR:') ? 'text-red-400' : 'text-gray-300'}`}
+                                  >
+                                    {log}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

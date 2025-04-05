@@ -8,7 +8,8 @@ import SpotifySearch from "@/components/spotify/SpotifySearch";
 import SpotifyPlaylistItem from "@/components/spotify/SpotifyPlaylistItem";
 import SpotifyContent from "@/components/spotify/SpotifyContent";
 import DownloadsPage from "@/components/downloads/DownloadsPage";
-import { getUserPlaylists, initializeSpotify } from "@/lib/spotify";
+import { getUserPlaylists } from "@/lib/spotify";
+import { SpotifyProvider, useSpotify } from "@/lib/SpotifyContext";
 
 // Types
 interface SpotifyPlaylist {
@@ -32,9 +33,20 @@ interface NavigationHistoryItem {
   searchQuery?: string;
 }
 
+// Main App component wrapped with SpotifyProvider
 function App() {
+  return (
+    <SpotifyProvider>
+      <AppContent />
+    </SpotifyProvider>
+  );
+}
+
+// App content that uses the Spotify context
+function AppContent() {
+  const { isAuthenticated: isSpotifyAuthenticated, refreshAuthStatus } = useSpotify();
+  
   const [currentPage, setCurrentPage] = useState("home");
-  const [isSpotifyAuthenticated, setIsSpotifyAuthenticated] = useState(false);
   const [spotifyPlaylists, setSpotifyPlaylists] = useState<SpotifyPlaylist[]>([]);
   const [isLoadingPlaylists, setIsLoadingPlaylists] = useState(false);
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string | null>(null);
@@ -51,10 +63,7 @@ function App() {
   ]);
   const [currentHistoryIndex, setCurrentHistoryIndex] = useState(0);
   
-  // Check Spotify authentication on mount and when currentPage changes to library
-  useEffect(() => {
-    checkSpotifyAuth();
-  }, []);
+  // We no longer refresh auth status on every page change to avoid flickering
   
   // Load playlists when authentication status changes or when navigating to library page
   useEffect(() => {
@@ -62,20 +71,6 @@ function App() {
       loadSpotifyPlaylists();
     }
   }, [isSpotifyAuthenticated, currentPage]);
-  
-  // Check if authenticated with Spotify
-  const checkSpotifyAuth = async () => {
-    try {
-      const spotify = await initializeSpotify();
-      setIsSpotifyAuthenticated(!!spotify);
-      
-      if (spotify) {
-        loadSpotifyPlaylists();
-      }
-    } catch (error) {
-      console.error("Failed to check Spotify authentication:", error);
-    }
-  };
   
   // Load Spotify playlists
   const loadSpotifyPlaylists = async () => {
@@ -162,6 +157,11 @@ function App() {
   
   // Handle navigation to main pages from sidebar
   const handlePageChange = (page: string) => {
+    // Only refresh auth status when going to settings
+    if (page === "settings") {
+      refreshAuthStatus();
+    }
+    
     addHistoryEntry({ page });
   };
   

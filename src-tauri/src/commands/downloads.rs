@@ -52,12 +52,15 @@ pub async fn clear_completed_downloads(
     app_handle: AppHandle,
     state: State<'_, DownloadManagerState>,
 ) -> Result<(), String> {
-    // This is a placeholder for now - we would need to implement the clear functionality
-    // in the DownloadManager struct first
+    // Clear completed downloads and get the count
+    let count = {
+        let mut download_manager = state.0.lock().map_err(|e| e.to_string())?;
+        download_manager.clear_completed_downloads()
+    };
     
-    // For now, we'll just emit an event to notify the frontend
-    let message = "Completed downloads cleared";
-    emit_download_message(&app_handle, "downloads:cleared", message);
+    // Emit an event to notify the frontend
+    let message = format!("Cleared {} completed downloads", count);
+    emit_download_message(&app_handle, "downloads:cleared", &message);
     
     Ok(())
 }

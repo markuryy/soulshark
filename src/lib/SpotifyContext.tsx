@@ -1,0 +1,125 @@
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
+import { SpotifyApi } from '@spotify/web-api-ts-sdk';
+import { initializeSpotify, resetSpotifyApi } from './spotify';
+import { invoke } from '@tauri-apps/api/core';
+
+// Types
+interface Credentials {
+  soulseek_password: string | null;
+  spotify_client_secret: string | null;
+  spotify_access_token: string | null;
+  spotify_refresh_token: string | null;
+  spotify_token_expires_at: number | null;
+}
+
+interface SpotifyContextType {
+  isAuthenticated: boolean;
+  spotifyApi: SpotifyApi | null;
+  refreshAuthStatus: () => Promise<boolean>;
+  logout: () => Promise<void>;
+}
+
+// Create the context with a default value
+const SpotifyContext = createContext<SpotifyContextType>({
+  isAuthenticated: false,
+  spotifyApi: null,
+  refreshAuthStatus: async () => false,
+  logout: async () => {},
+});
+
+// Custom hook to use the Spotify context
+export const useSpotify = () => useContext(SpotifyContext);
+
+// Provider component
+export const SpotifyProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [spotifyApi, setSpotifyApi] = useState<SpotifyApi | null>(null);
+  
+  // Use a ref to track the last refresh time to prevent too frequent refreshes
+  const lastRefreshTimeRef = useRef<number>(0);
+  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Check authentication status - with debounce to prevent too many calls
+  const refreshAuthStatus = async () => {
+    // Prevent refreshing more than once every 2 seconds
+    const now = Date.now();
+    if (now - lastRefreshTimeRef.current < 2000) {
+      return isAuthenticated;
+    }
+    
+    // Update last refresh time
+    lastRefreshTimeRef.current = now;
+    
+    // Clear any pending refresh
+    if (refreshTimeoutRef.current) {
+      clearTimeout(refreshTimeoutRef.current);
+      refreshTimeoutRef.current = null;
+    }
+    
+    try {
+      // Reset the API instance to force a fresh check
+      resetSpotifyApi();
+      
+      // Try to initialize Spotify with stored credentials
+      const api = await initializeSpotify();
+      
+      // Update state based on the result
+      setSpotifyApi(api);
+      setIsAuthenticated(!!api);
+      
+      return !!api;
+    } catch (error) {
+      console.error('Failed to refresh Spotify auth status:', error);
+      setIsAuthenticated(false);
+      setSpotifyApi(null);
+      return false;
+    }
+  };
+
+  // Logout from Spotify
+  const logout = async () => {
+    try {
+      // Get current credentials
+      const credentials = await invoke<Credentials>('get_credentials');
+      
+      // Clear Spotify tokens
+      await invoke('save_credentials', {
+        credentials: {
+          ...credentials,
+          spotify_access_token: null,
+          spotify_refresh_token: null,
+          spotify_token_expires_at: null,
+        },
+      });
+      
+      // Reset the API instance
+      resetSpotifyApi();
+      
+      // Update state
+      setIsAuthenticated(false);
+      setSpotifyApi(null);
+    } catch (error) {
+      console.error('Failed to logout from Spotify:', error);
+    }
+  };
+
+  // Check authentication status on mount only
+  useEffect(() => {
+    refreshAuthStatus();
+    // No dependencies to prevent re-running
+  }, []);
+
+  // Provide the context value
+  const contextValue: SpotifyContextType = {
+    isAuthenticated,
+    spotifyApi,
+    refreshAuthStatus,
+    logout,
+  };
+
+  return (
+    <SpotifyContext.Provider value={contextValue}>
+      {children}
+    </SpotifyContext.Provider>
+  );
+};

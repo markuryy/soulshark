@@ -202,10 +202,21 @@ export async function downloadPlaylist(playlistId: string) {
   const playlistUrl = `https://open.spotify.com/playlist/${playlistId}`;
   
   try {
-    // Call the Tauri command to execute sldl
+    // Get playlist details to pass as metadata
+    const spotify = await initializeSpotify();
+    if (!spotify) {
+      throw new Error("Not authenticated with Spotify");
+    }
+    
+    // Get playlist details
+    const playlist = await spotify.playlists.getPlaylist(playlistId);
+    
+    // Call the Tauri command to execute sldl with playlist metadata
     await invoke("execute_sldl", {
       query: playlistUrl,
-      options: {}
+      options: {},
+      title: playlist.name,
+      artist: playlist.owner?.display_name || undefined
     });
     
     return true;
@@ -224,10 +235,24 @@ export async function downloadAlbum(albumId: string) {
   const albumUrl = `https://open.spotify.com/album/${albumId}`;
   
   try {
-    // Call the Tauri command to execute sldl
+    // Get album details to pass as metadata
+    const spotify = await initializeSpotify();
+    if (!spotify) {
+      throw new Error("Not authenticated with Spotify");
+    }
+    
+    // Get album details
+    const album = await spotify.albums.get(albumId);
+    
+    // Get artist name
+    const artistName = album.artists.length > 0 ? album.artists[0].name : undefined;
+    
+    // Call the Tauri command to execute sldl with album metadata
     await invoke("execute_sldl", {
       query: albumUrl,
-      options: {}
+      options: {},
+      title: album.name,
+      artist: artistName
     });
     
     return true;
@@ -243,10 +268,21 @@ export async function downloadAlbum(albumId: string) {
  */
 export async function downloadLikedTracks() {
   try {
-    // Call the Tauri command to execute sldl
+    // Get user profile to pass as metadata
+    const spotify = await initializeSpotify();
+    if (!spotify) {
+      throw new Error("Not authenticated with Spotify");
+    }
+    
+    // Get user profile
+    const userProfile = await spotify.currentUser.profile();
+    
+    // Call the Tauri command to execute sldl with metadata
     await invoke("execute_sldl", {
       query: "spotify-likes",
-      options: {}
+      options: {},
+      title: "Liked Songs",
+      artist: userProfile.display_name || undefined
     });
     
     return true;

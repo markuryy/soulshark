@@ -5,6 +5,7 @@ import { SpotifyApi } from "@spotify/web-api-ts-sdk";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { useSpotify } from "@/lib/SpotifyContext";
 
 // Define types
 interface SpotifySettings {
@@ -25,7 +26,9 @@ interface SpotifyAuthProps {
 }
 
 export default function SpotifyAuth({ onAuthSuccess }: SpotifyAuthProps) {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  // Use the global Spotify context
+  const { isAuthenticated, refreshAuthStatus } = useSpotify();
+  
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [spotifySettings, setSpotifySettings] = useState<SpotifySettings>({
     client_id: "",
@@ -64,8 +67,8 @@ export default function SpotifyAuth({ onAuthSuccess }: SpotifyAuthProps) {
             setIsAuthenticating(false);
             clearInterval(interval!);
             
-            // Force a reload of credentials to ensure UI updates
-            await loadCredentials();
+            // Only refresh auth status once at the end of authentication
+            await refreshAuthStatus();
             
             toast.success("Successfully connected to Spotify!");
             
@@ -85,28 +88,7 @@ export default function SpotifyAuth({ onAuthSuccess }: SpotifyAuthProps) {
         clearInterval(interval);
       }
     };
-  }, [isAuthenticating, onAuthSuccess]);
-
-  // Check if we have valid tokens
-  useEffect(() => {
-    if (credentials) {
-      const hasTokens = !!credentials.spotify_access_token && !!credentials.spotify_refresh_token;
-      const isExpired = credentials.spotify_token_expires_at 
-        ? credentials.spotify_token_expires_at * 1000 < Date.now() 
-        : true;
-      
-      console.log('Auth check:', { 
-        hasTokens, 
-        isExpired, 
-        expires_at: credentials.spotify_token_expires_at,
-        now: Date.now(),
-        access_token: !!credentials.spotify_access_token,
-        refresh_token: !!credentials.spotify_refresh_token
-      });
-      
-      setIsAuthenticated(hasTokens && !isExpired);
-    }
-  }, [credentials]);
+  }, [isAuthenticating, onAuthSuccess, refreshAuthStatus]);
 
   // Load Spotify settings
   const loadSettings = async () => {
@@ -124,63 +106,11 @@ export default function SpotifyAuth({ onAuthSuccess }: SpotifyAuthProps) {
     try {
       const creds = await invoke<Credentials>("get_credentials");
       setCredentials(creds);
+      // Don't refresh auth status here
     } catch (error) {
       console.error("Failed to load credentials:", error);
       toast.error("Failed to load credentials");
     }
-  };
-
-  // Save Spotify tokens to credentials store
-  const saveTokens = async (
-    accessToken: string,
-    refreshToken: string,
-    expiresAt: number
-  ) => {
-    if (!credentials) return;
-
-    try {
-      await invoke("save_credentials", {
-        credentials: {
-          ...credentials,
-          spotify_access_token: accessToken,
-          spotify_refresh_token: refreshToken,
-          spotify_token_expires_at: expiresAt,
-        },
-      });
-      
-      // Reload credentials to verify they were saved
-      await loadCredentials();
-      
-      toast.success("Spotify authentication successful");
-      
-      // Call the success callback if provided
-      if (onAuthSuccess) {
-        onAuthSuccess();
-      }
-    } catch (error) {
-      console.error("Failed to save Spotify tokens:", error);
-      toast.error("Failed to save Spotify tokens");
-    }
-  };
-
-  // Generate a code verifier for PKCE
-  const generateCodeVerifier = (length: number) => {
-    let text = '';
-    const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    for (let i = 0; i < length; i++) {
-      text += possible.charAt(Math.floor(Math.random() * possible.length));
-    }
-    return text;
-  };
-
-  // Generate a code challenge from the verifier
-  const generateCodeChallenge = async (codeVerifier: string) => {
-    const data = new TextEncoder().encode(codeVerifier);
-    const digest = await window.crypto.subtle.digest('SHA-256', data);
-    return btoa(String.fromCharCode.apply(null, [...new Uint8Array(digest)]))
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=+$/, '');
   };
 
   // Initiate Spotify authentication
@@ -241,29 +171,24 @@ export default function SpotifyAuth({ onAuthSuccess }: SpotifyAuthProps) {
     }
   };
 
-  // Check if authentication was successful
-  const checkAuthStatus = async () => {
-    try {
-      // Check if there's a pending auth
-      const hasPendingAuth = await invoke<boolean>("check_pending_auth");
-      
-      // Reload credentials
-      await loadCredentials();
-      
-      if (credentials?.spotify_access_token) {
-        toast.success("Successfully connected to Spotify!");
-        if (onAuthSuccess) {
-          onAuthSuccess();
-        }
-      } else if (hasPendingAuth) {
-        toast.info("Authentication in progress. Please complete the process in your browser.");
-      } else {
-        toast.error("Not connected to Spotify. Please try authenticating again.");
-      }
-    } catch (error) {
-      console.error("Failed to check authentication status:", error);
-      toast.error("Failed to check authentication status");
+  // Generate a code verifier for PKCE
+  const generateCodeVerifier = (length: number) => {
+    let text = '';
+    const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    for (let i = 0; i < length; i++) {
+      text += possible.charAt(Math.floor(Math.random() * possible.length));
     }
+    return text;
+  };
+
+  // Generate a code challenge from the verifier
+  const generateCodeChallenge = async (codeVerifier: string) => {
+    const data = new TextEncoder().encode(codeVerifier);
+    const digest = await window.crypto.subtle.digest('SHA-256', data);
+    return btoa(String.fromCharCode.apply(null, [...new Uint8Array(digest)]))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
   };
 
   // Logout from Spotify
@@ -283,9 +208,9 @@ export default function SpotifyAuth({ onAuthSuccess }: SpotifyAuthProps) {
         },
       });
       
-      // Reload credentials
-      await loadCredentials();
-      setIsAuthenticated(false);
+      // Refresh the global auth status once after logout
+      await refreshAuthStatus();
+      
       toast.success("Disconnected from Spotify");
     } catch (error) {
       console.error("Failed to logout from Spotify:", error);
