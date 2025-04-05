@@ -38,3 +38,4 @@ tokio = { version = "1.44.1", features = ["rt"] }
 uuid = { version = "1.7.0", features = ["v4", "serde"] }
 chrono = { version = "0.4.35", features = ["serde"] }
 regex = "1.11.1"
+tokio-stream = { version = "0.1.17", features = ["fs"] }

@@ -402,6 +402,51 @@ pub async fn execute_sldl(
                     let is_success = status.code.map_or(false, |code| code == 0);
                     let _ = app_handle_clone.emit("sldl:terminated", is_success);
                     
+                    // Cleanup unwanted playlist metadata files
+                    let download_path = {
+                        let settings_state = app_handle_clone.state::<SettingsState>();
+                        if let Ok(settings) = settings::store::get_settings(settings_state) {
+                            settings.soulseek.downloads_path.clone()
+                        } else {
+                            String::new()
+                        }
+                    };
+                    if !download_path.is_empty() {
+                        tauri::async_runtime::spawn(async move {
+                            use std::path::Path;
+                            use tokio::fs;
+                            use tokio_stream::wrappers::ReadDirStream;
+                            use tokio_stream::StreamExt;
+
+                            fn clean_dir<'a>(path: &'a Path) -> std::pin::Pin<Box<dyn std::future::Future<Output=std::io::Result<()>> + Send + 'a>> {
+                                fn inner<'a>(path: &'a Path) -> std::pin::Pin<Box<dyn std::future::Future<Output=std::io::Result<()>> + Send + 'a>> {
+                                    Box::pin(async move {
+                                        let mut entries = fs::read_dir(path).await.map(ReadDirStream::new)?;
+                                        while let Some(Ok(entry)) = entries.next().await {
+                                            let entry_path = entry.path();
+                                            if entry_path.is_dir() {
+                                                inner(&entry_path).await?;
+                                                if let Ok(mut dir_stream) = fs::read_dir(&entry_path).await {
+                                                    if matches!(dir_stream.next_entry().await, Ok(None)) {
+                                                        let _ = fs::remove_dir(&entry_path).await;
+                                                    }
+                                                }
+                                            } else if let Some(name) = entry_path.file_name().and_then(|n| n.to_str()) {
+                                                if name == "_index.sldl" {
+                                                    let _ = fs::remove_file(&entry_path).await;
+                                                }
+                                            }
+                                        }
+                                        Ok(())
+                                    })
+                                }
+                                inner(path)
+                            }
+
+                            let _ = clean_dir(Path::new(&download_path)).await;
+                        });
+                    }
+
                     // If the command failed, update the download status
                     if !is_success {
                         if let Ok(mut download_manager) = download_manager_state.lock() {
