@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Download } from "lucide-react";
+import { Download, RefreshCw } from "lucide-react";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import SpotifyAuth from "./SpotifyAuth";
 import SpotifyTrackList from "./SpotifyTrackList";
 import { FixedSizeList as List } from "react-window";
@@ -77,7 +78,7 @@ export default function SpotifyContent({
   onAlbumClick
 }: SpotifyContentProps) {
   // Use the global Spotify context
-  const { isAuthenticated, refreshAuthStatus } = useSpotify();
+  const { isAuthenticated, refreshAuthStatus, fetchLikedTracks, clearLikedTracksCache } = useSpotify();
   
   const [isLoading, setIsLoading] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState<{loaded: number; total: number} | null>(null);
@@ -211,36 +212,40 @@ export default function SpotifyContent({
   };
 
   // Load liked tracks
-  const loadLikedTracks = async () => {
+  const loadLikedTracks = async (forceRefresh = false) => {
     try {
-      // Show loading state
       setIsLoading(true);
       setLoadingProgress(null);
-      
-      // Use the getAllLikedTracks function to fetch all tracks
-      const allTracks = await getAllLikedTracks(50, (loaded, total) => {
-        // Update loading progress state
-        setLoadingProgress({ loaded, total });
-      });
-      
-      // Apply limit if specified (though we want to show all tracks)
-      let tracksToDisplay = allTracks;
-      if (limit && limit > 0 && tracksToDisplay.length > limit) {
-        tracksToDisplay = tracksToDisplay.slice(0, limit);
+
+      const likedTracksPromise = fetchLikedTracks(forceRefresh);
+
+      // Optional: show progress bar only if forceRefresh (full fetch)
+      if (forceRefresh) {
+        const { getAllLikedTracks } = await import('@/lib/spotify');
+        const allTracks = await getAllLikedTracks(50, (loaded, total) => {
+          setLoadingProgress({ loaded, total });
+        });
+        setTracks(allTracks);
+      } else {
+        const cachedTracks = await likedTracksPromise;
+        setTracks(cachedTracks);
       }
-      
-      setTracks(tracksToDisplay);
+
+      // Apply limit if specified
+      if (limit && limit > 0 && tracks.length > limit) {
+        setTracks(tracks.slice(0, limit));
+      }
+
       setLoadingProgress(null);
     } catch (error) {
       console.error("Failed to load liked tracks:", error);
       setLoadingProgress(null);
-      
-      // If we get an authentication error, refresh auth status
+
       if (error instanceof Error && error.message.includes("authentication")) {
         resetSpotifyApi();
         refreshAuthStatus();
       }
-      
+
       throw error;
     }
   };
@@ -479,26 +484,43 @@ export default function SpotifyContent({
 
   // Render content based on type
   return (
-    <div className="p-6">
-      {contentType === 'liked' && (
+    <TooltipProvider>
+      <div className="p-6">
+        {contentType === 'liked' && (
         <>
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold">Liked Songs</h2>
-            <Button 
-              onClick={handleDownloadAll}
-              disabled={isDownloading || tracks.length === 0}
-              className="bg-green-600 hover:bg-green-700"
-              title="Save all tracks"
-            >
-              {isDownloading ? (
-                <div className="flex items-center">
-                  <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
+            <div className="flex gap-2">
+              <Tooltip>
+                <TooltipTrigger>
+                  <Button
+                    onClick={() => loadLikedTracks(true)}
+                    disabled={isLoading}
+                    className="bg-blue-600 hover:bg-blue-700 p-2"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Refresh liked songs from Spotify
+                </TooltipContent>
+              </Tooltip>
+              <Button 
+                onClick={handleDownloadAll}
+                disabled={isDownloading || tracks.length === 0}
+                className="bg-green-600 hover:bg-green-700"
+                title="Save all tracks"
+              >
+                {isDownloading ? (
+                  <div className="flex items-center">
+                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
+                    <Download className="h-4 w-4" />
+                  </div>
+                ) : (
                   <Download className="h-4 w-4" />
-                </div>
-              ) : (
-                <Download className="h-4 w-4" />
-              )}
-            </Button>
+                )}
+              </Button>
+            </div>
           </div>
           <SpotifyTrackList 
             tracks={tracks}
@@ -668,6 +690,7 @@ export default function SpotifyContent({
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </TooltipProvider>
   );
 }

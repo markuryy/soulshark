@@ -1,3 +1,6 @@
+// Types
+import type { SpotifyTrack } from './spotifyTypes';
+
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { SpotifyApi } from '@spotify/web-api-ts-sdk';
 import { initializeSpotify, resetSpotifyApi } from './spotify';
@@ -12,11 +15,16 @@ interface Credentials {
   spotify_token_expires_at: number | null;
 }
 
+
 interface SpotifyContextType {
   isAuthenticated: boolean;
   spotifyApi: SpotifyApi | null;
   refreshAuthStatus: () => Promise<boolean>;
   logout: () => Promise<void>;
+
+  likedTracks: SpotifyTrack[] | null;
+  fetchLikedTracks: (forceRefresh?: boolean) => Promise<SpotifyTrack[]>;
+  clearLikedTracksCache: () => void;
 }
 
 // Create the context with a default value
@@ -25,6 +33,10 @@ const SpotifyContext = createContext<SpotifyContextType>({
   spotifyApi: null,
   refreshAuthStatus: async () => false,
   logout: async () => {},
+
+  likedTracks: null,
+  fetchLikedTracks: async () => [],
+  clearLikedTracksCache: () => {},
 });
 
 // Custom hook to use the Spotify context
@@ -34,6 +46,27 @@ export const useSpotify = () => useContext(SpotifyContext);
 export const SpotifyProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [spotifyApi, setSpotifyApi] = useState<SpotifyApi | null>(null);
+
+  const [likedTracks, setLikedTracks] = useState<SpotifyTrack[] | null>(null);
+
+  const fetchLikedTracks = async (forceRefresh = false): Promise<SpotifyTrack[]> => {
+    if (!forceRefresh && likedTracks) {
+      return likedTracks;
+    }
+    try {
+      const { getAllLikedTracks } = await import('./spotify');
+      const tracks = await getAllLikedTracks(50);
+      setLikedTracks(tracks);
+      return tracks;
+    } catch (error) {
+      console.error('Failed to fetch liked tracks:', error);
+      throw error;
+    }
+  };
+
+  const clearLikedTracksCache = () => {
+    setLikedTracks(null);
+  };
   
   // Use a ref to track the last refresh time to prevent too frequent refreshes
   const lastRefreshTimeRef = useRef<number>(0);
@@ -115,6 +148,10 @@ export const SpotifyProvider: React.FC<{ children: ReactNode }> = ({ children })
     spotifyApi,
     refreshAuthStatus,
     logout,
+
+    likedTracks,
+    fetchLikedTracks,
+    clearLikedTracksCache,
   };
 
   return (
