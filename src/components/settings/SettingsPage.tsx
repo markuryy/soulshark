@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
+import { useSpotify } from "@/lib/SpotifyContext";
+import { toast } from "sonner";
 import { invoke } from "@tauri-apps/api/core";
 import { load } from "@tauri-apps/plugin-store";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -335,6 +336,34 @@ export default function SettingsPage() {
               
               <div className="mt-6">
                 <SpotifyAuth onAuthSuccess={() => loadCredentials()} />
+
+                <Button
+                  className="mt-4"
+                  variant="secondary"
+                  onClick={async () => {
+                    try {
+                      const success = await (async () => {
+                        try {
+                          const { refreshAuthStatus } = useSpotify();
+                          return await refreshAuthStatus();
+                        } catch (error) {
+                          console.error("Failed to call refreshAuthStatus:", error);
+                          return false;
+                        }
+                      })();
+                      if (success) {
+                        toast.success("Spotify connection refreshed");
+                      } else {
+                        toast.error("Failed to refresh Spotify connection");
+                      }
+                    } catch (error) {
+                      console.error("Error refreshing Spotify connection:", error);
+                      toast.error("Error refreshing Spotify connection");
+                    }
+                  }}
+                >
+                  Refresh Spotify Connection
+                </Button>
               </div>
             </CardContent>
           </Card>

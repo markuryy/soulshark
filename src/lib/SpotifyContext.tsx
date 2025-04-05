@@ -79,8 +79,8 @@ export const SpotifyProvider: React.FC<{ children: ReactNode }> = ({ children })
       return playlistTracksCache.get(playlistId)!;
     }
     try {
-      const { getPlaylistTracks } = await import('./spotify');
-      const items = await getPlaylistTracks(playlistId);
+      const { getAllPlaylistTracks } = await import('./spotify');
+      const items = await getAllPlaylistTracks(playlistId);
       const tracks = items.map(item => item.track as SpotifyTrack);
       playlistTracksCache.set(playlistId, tracks);
       return tracks;
@@ -95,10 +95,10 @@ export const SpotifyProvider: React.FC<{ children: ReactNode }> = ({ children })
       return albumTracksCache.get(albumId)!;
     }
     try {
-      const { getAlbumTracks, getAlbum } = await import('./spotify');
-      const albumTracksResponse = await getAlbumTracks(albumId);
+      const { getAllAlbumTracks, getAlbum } = await import('./spotify');
+      const albumTracks = await getAllAlbumTracks(albumId);
       const albumResponse = await getAlbum(albumId);
-      const tracks = albumTracksResponse.items.map(track => ({
+      const tracks = albumTracks.map(track => ({
         id: track.id,
         name: track.name,
         artists: track.artists.map(artist => ({ id: artist.id, name: artist.name })),
@@ -149,6 +149,10 @@ export const SpotifyProvider: React.FC<{ children: ReactNode }> = ({ children })
       // Try to initialize Spotify with stored credentials
       const api = await initializeSpotify();
       
+      if (!api) {
+        console.warn('Spotify API initialization returned null. Likely due to missing, expired, or invalid tokens.');
+      }
+      
       // Update state based on the result
       setSpotifyApi(api);
       setIsAuthenticated(!!api);
@@ -158,6 +162,15 @@ export const SpotifyProvider: React.FC<{ children: ReactNode }> = ({ children })
       console.error('Failed to refresh Spotify auth status:', error);
       setIsAuthenticated(false);
       setSpotifyApi(null);
+
+      // Optional: show toast notification if refresh fails
+      try {
+        const { toast } = await import('sonner');
+        toast.error('Failed to refresh Spotify connection. Please try reconnecting.');
+      } catch (e) {
+        console.error('Failed to load toast notification module:', e);
+      }
+
       return false;
     }
   };

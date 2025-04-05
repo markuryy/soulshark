@@ -403,12 +403,6 @@ export default function SpotifyContent({
         <div className="flex flex-col items-center justify-center py-12">
           <h2 className="text-2xl font-bold mb-4">Spotify Not Connected</h2>
           <p className="text-gray-400 mb-6">You need to connect to Spotify to view this content</p>
-          <Button 
-            onClick={() => window.location.hash = "#/settings"}
-            className="bg-green-600 hover:bg-green-700"
-          >
-            Go to Settings
-          </Button>
         </div>
       </div>
     );

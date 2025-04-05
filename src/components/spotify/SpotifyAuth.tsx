@@ -68,6 +68,13 @@ export default function SpotifyAuth({ onAuthSuccess }: SpotifyAuthProps) {
             
             // Only refresh auth status once at the end of authentication
             await refreshAuthStatus();
+
+            // Force a second refresh after a short delay to ensure context updates
+            setTimeout(() => {
+              refreshAuthStatus().catch((error) => {
+                console.error("Delayed refreshAuthStatus() failed:", error);
+              });
+            }, 1000);
             
             toast.success("Successfully connected to Spotify!");
             

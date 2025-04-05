@@ -187,47 +187,29 @@ export async function getAllLikedTracks(batchSize: number = 50, onProgress?: (lo
   if (!spotify) {
     throw new Error("Not authenticated with Spotify");
   }
-  
-  // Get the total count first
-  const firstBatch = await getLikedTracks(1, 0);
-  const totalTracks = firstBatch.total;
-  
-  // If there are no tracks, return empty array
+
+  // Get total liked tracks count
+  const totalTracks = await getLikedTracksCount();
+
   if (totalTracks === 0) {
     return [];
   }
-  
-  // Calculate how many requests we need to make
+
   const actualBatchSize = Math.min(batchSize, 50);
   const batchCount = Math.ceil(totalTracks / actualBatchSize);
-  
-  // Create an array of promises for all the requests
   const allTracks = [];
-  
-  // Start with the first batch we already loaded (if it had items)
-  if (firstBatch.items.length > 0) {
-    allTracks.push(...firstBatch.items.map(item => item.track));
-    
-    // Report progress
-    if (onProgress) {
-      onProgress(allTracks.length, totalTracks);
-    }
-  }
-  
-  // Load remaining batches
-  for (let i = 1; i < batchCount; i++) {
+
+  for (let i = 0; i < batchCount; i++) {
     const offset = i * actualBatchSize;
     const response = await getLikedTracks(actualBatchSize, offset);
-    
-    // Add tracks to our array
+
     allTracks.push(...response.items.map(item => item.track));
-    
-    // Report progress
+
     if (onProgress) {
       onProgress(allTracks.length, totalTracks);
     }
   }
-  
+
   return allTracks;
 }
 
@@ -441,6 +423,77 @@ export async function getAlbumTracks(albumId: string, offset = 0) {
 
   // Using 50 as a fixed limit
   return await spotify.albums.tracks(albumId, undefined, 50, offset);
+}
+
+/**
+ * Get all tracks in a playlist, handling pagination
+ * @param playlistId Spotify playlist ID
+ * @param batchSize Number of tracks per request (max 100)
+ * @param onProgress Optional progress callback
+ * @returns Array of all playlist tracks
+ */
+export async function getAllPlaylistTracks(playlistId: string, batchSize: number = 100, onProgress?: (loaded: number, total: number) => void) {
+  const spotify = await initializeSpotify();
+  if (!spotify) throw new Error("Not authenticated with Spotify");
+
+  const firstPage = await spotify.playlists.getPlaylistItems(playlistId, undefined, undefined, 1, 0);
+  const total = firstPage.total ?? 0;
+  if (total === 0) return [];
+
+  const allItems = [];
+  const actualBatchSize = Math.min(batchSize, 100);
+  const batchCount = Math.ceil(total / actualBatchSize);
+
+  for (let i = 0; i < batchCount; i++) {
+    const offset = i * actualBatchSize;
+    const page = await spotify.playlists.getPlaylistItems(
+      playlistId,
+      undefined,
+      undefined,
+      actualBatchSize as any,
+      offset
+    );
+    allItems.push(...page.items);
+
+    if (onProgress) onProgress(allItems.length, total);
+  }
+
+  return allItems;
+}
+
+/**
+ * Get all tracks in an album, handling pagination
+ * @param albumId Spotify album ID
+ * @param batchSize Number of tracks per request (max 50)
+ * @param onProgress Optional progress callback
+ * @returns Array of all album tracks
+ */
+export async function getAllAlbumTracks(albumId: string, batchSize: number = 50, onProgress?: (loaded: number, total: number) => void) {
+  const spotify = await initializeSpotify();
+  if (!spotify) throw new Error("Not authenticated with Spotify");
+
+  const firstPage = await spotify.albums.tracks(albumId, undefined, 1, 0);
+  const total = firstPage.total ?? 0;
+  if (total === 0) return [];
+
+  const allItems = [];
+  const actualBatchSize = Math.min(batchSize, 50);
+  const batchCount = Math.ceil(total / actualBatchSize);
+
+  for (let i = 0; i < batchCount; i++) {
+    const offset = i * actualBatchSize;
+    const page = await spotify.albums.tracks(
+      albumId,
+      undefined,
+      actualBatchSize as any,
+      offset
+    );
+    allItems.push(...page.items);
+
+    if (onProgress) onProgress(allItems.length, total);
+  }
+
+  return allItems;
 }
 
 /**
