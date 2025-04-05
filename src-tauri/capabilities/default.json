@@ -9,6 +9,17 @@
     "core:default",
     "opener:default",
     "stronghold:default",
-    "store:default"
+    "store:default",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "binaries/sldl",
+          "sidecar": true
+        }
+      ]
+    },
+    "shell:allow-open",
+    "shell:default"
   ]
 }
