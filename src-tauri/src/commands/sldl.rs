@@ -319,23 +319,36 @@ pub async fn execute_sldl(
                                 // For playlists, increment completed tracks
                                 if download.is_playlist {
                                     download.increment_completed_tracks();
+
+                                    // Fallback: if playlist has only 1 track, mark as completed immediately
+                                    if let (Some(total), Some(completed), Some(failed)) = (
+                                        download.total_tracks,
+                                        download.completed_tracks,
+                                        download.failed_tracks
+                                    ) {
+                                        if total == 1 && completed + failed >= 1 {
+                                            download.update_status(DownloadStatus::Completed);
+                                            download.update_progress(1.0);
+                                            let download_clone = download.clone();
+                                            emit_download_event(&app_handle_clone, "download:completed", &download_clone);
+                                            continue;
+                                        }
+                                    }
+
+                                    // Otherwise, emit progress event
+                                    let download_clone = download.clone();
+                                    emit_download_event(&app_handle_clone, "download:progress", &download_clone);
                                 } else {
                                     // For single downloads, mark as completed
                                     download.update_status(DownloadStatus::Completed);
                                     download.update_progress(1.0);
-                                }
-                                
-                                // Extract file path if available
-                                if let Some(file_path) = caps.get(1) {
-                                    download.set_file_path(file_path.as_str().to_string());
-                                }
-                                
-                                // Emit progress or completed event
-                                let download_clone = download.clone();
-                                
-                                if download.is_playlist {
-                                    emit_download_event(&app_handle_clone, "download:progress", &download_clone);
-                                } else {
+
+                                    // Extract file path if available
+                                    if let Some(file_path) = caps.get(1) {
+                                        download.set_file_path(file_path.as_str().to_string());
+                                    }
+
+                                    let download_clone = download.clone();
                                     emit_download_event(&app_handle_clone, "download:completed", &download_clone);
                                 }
                             }
@@ -401,19 +414,16 @@ pub async fn execute_sldl(
                             }
                         }
                     } else {
-                        // If command succeeded but we didn't get a completion message for a playlist
-                        // (this is a fallback in case we miss the "Completed: X succeeded, Y failed" message)
-                        if is_playlist_clone.load(Ordering::SeqCst) {
-                            if let Ok(mut download_manager) = download_manager_state.lock() {
-                                if let Some(download) = download_manager.get_download_mut(&download_id_clone) {
-                                    if download.status != DownloadStatus::Completed {
-                                        download.update_status(DownloadStatus::Completed);
-                                        download.update_progress(1.0);
-                                        
-                                        // Emit completed event
-                                        let download_clone = download.clone();
-                                        emit_download_event(&app_handle_clone, "download:completed", &download_clone);
-                                    }
+                        // If command succeeded but we didn't get a completion message
+                        if let Ok(mut download_manager) = download_manager_state.lock() {
+                            if let Some(download) = download_manager.get_download_mut(&download_id_clone) {
+                                if download.status != DownloadStatus::Completed {
+                                    download.update_status(DownloadStatus::Completed);
+                                    download.update_progress(1.0);
+                                    
+                                    // Emit completed event
+                                    let download_clone = download.clone();
+                                    emit_download_event(&app_handle_clone, "download:completed", &download_clone);
                                 }
                             }
                         }
