@@ -1,5 +1,5 @@
 use crate::downloads::{Download, DownloadManagerState, DownloadStatus, emit_download_event, emit_download_message};
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, State};
 
 /// Get all downloads
 #[tauri::command]

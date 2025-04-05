@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Store, load } from "@tauri-apps/plugin-store";
+import { load } from "@tauri-apps/plugin-store";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -389,7 +389,7 @@ export default function SettingsPage() {
       <div className="mt-6">
         <div className="flex justify-end gap-3">
           <Button 
-            variant="outline" 
+            variant="ghost" 
             onClick={() => {
               loadSettings();
               loadCredentials();

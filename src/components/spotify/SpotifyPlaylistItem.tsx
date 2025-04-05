@@ -8,7 +8,6 @@ interface SpotifyPlaylistItemProps {
   name: string;
   description?: string;
   imageUrl?: string;
-  trackCount: number;
   onClick: () => void;
   isActive?: boolean;
 }
@@ -18,7 +17,6 @@ export default function SpotifyPlaylistItem({
   name,
   description,
   imageUrl,
-  trackCount,
   onClick,
   isActive = false,
 }: SpotifyPlaylistItemProps) {

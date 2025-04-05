@@ -3,9 +3,7 @@ import { Home, Heart, Library, Settings, ChevronLeft, ChevronRight, Search, Musi
 import { useState, useEffect } from "react";
 import SoulSharkLogo from "@/components/logo";
 import SettingsPage from "@/components/settings/SettingsPage";
-import SpotifyAuth from "@/components/spotify/SpotifyAuth";
 import SpotifySearch from "@/components/spotify/SpotifySearch";
-import SpotifyPlaylistItem from "@/components/spotify/SpotifyPlaylistItem";
 import SpotifyContent from "@/components/spotify/SpotifyContent";
 import DownloadsPage from "@/components/downloads/DownloadsPage";
 import { getUserPlaylists, getLikedTracksCount } from "@/lib/spotify";
@@ -344,7 +342,7 @@ function AppContent() {
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-2xl font-bold">{selectedArtistName}</h2>
                   <Button 
-                    variant="outline"
+                    variant="secondary"
                     onClick={goBack}
                     className="ml-4"
                   >
@@ -365,7 +363,7 @@ function AppContent() {
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-2xl font-bold">{selectedAlbumName}</h2>
                   <Button 
-                    variant="outline"
+                    variant="secondary"
                     onClick={goBack}
                     className="ml-4"
                   >

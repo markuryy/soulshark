@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Download, Play, Clock } from "lucide-react";
+import { Download, Clock } from "lucide-react";
 import { downloadTrack } from "@/lib/spotify";
 
 interface SpotifyTrack {

@@ -2,9 +2,7 @@ use crate::downloads::{Download, DownloadManagerState, DownloadStatus, emit_down
 use crate::settings::{self, SettingsState};
 use std::collections::HashMap;
 use tauri::{AppHandle, Manager, Emitter, State};
-use serde::Serialize;
 use tauri_plugin_shell::{ShellExt, process::CommandEvent};
-use uuid::Uuid;
 use regex::Regex;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -299,7 +297,7 @@ pub async fn execute_sldl(
                     }
                     
                     // Check for not found status
-                    else if let Some(caps) = not_found_re.captures(&line_str) {
+                    else if not_found_re.is_match(&line_str) {
                         if let Ok(mut download_manager) = download_manager_state.lock() {
                             if let Some(download) = download_manager.get_download_mut(&download_id_clone) {
                                 // For playlists, increment failed tracks

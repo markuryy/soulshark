@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { load } from "@tauri-apps/plugin-store";
-import { SpotifyApi } from "@spotify/web-api-ts-sdk";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -227,7 +226,7 @@ export default function SpotifyAuth({ onAuthSuccess }: SpotifyAuthProps) {
               <span className="text-muted-foreground">✓</span> Connected to Spotify
             </div>
             <Button 
-              variant="outline" 
+              variant="secondary" 
               onClick={logoutFromSpotify}
             >
               Disconnect from Spotify
