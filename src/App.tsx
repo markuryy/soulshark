@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
-import { Home, Heart, Library, Settings, ChevronLeft, ChevronRight, Disc3 } from "lucide-react";
+import { Home, Heart, Library, Settings, ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
+import SoulSharkLogo from "@/components/logo";
 
 function App() {
   const [currentProgress, setCurrentProgress] = useState(0);
@@ -11,8 +12,8 @@ function App() {
         {/* Sidebar */}
         <div className="w-60 bg-black p-6 flex flex-col gap-6 fixed h-screen">
           <div className="flex items-center gap-2 mb-2">
-            <Disc3 className="h-8 w-8" />
-            <span className="text-xl font-bold">webTunes</span>
+            <SoulSharkLogo className="h-8 w-8 mr-2" />
+            <span className="text-xl font-bold">soulshark</span>
           </div>
           <div className="space-y-4">
             <Button variant="ghost" className="w-full justify-start text-lg font-semibold">
