@@ -8,7 +8,7 @@ import SpotifySearch from "@/components/spotify/SpotifySearch";
 import SpotifyPlaylistItem from "@/components/spotify/SpotifyPlaylistItem";
 import SpotifyContent from "@/components/spotify/SpotifyContent";
 import DownloadsPage from "@/components/downloads/DownloadsPage";
-import { getUserPlaylists } from "@/lib/spotify";
+import { getUserPlaylists, getLikedTracksCount } from "@/lib/spotify";
 import { SpotifyProvider, useSpotify } from "@/lib/SpotifyContext";
 import SimpleBar from 'simplebar-react';
 
@@ -49,6 +49,7 @@ function AppContent() {
   
   const [currentPage, setCurrentPage] = useState("home");
   const [spotifyPlaylists, setSpotifyPlaylists] = useState<SpotifyPlaylist[]>([]);
+  const [likedSongsCount, setLikedSongsCount] = useState<number | null>(null);
   const [isLoadingPlaylists, setIsLoadingPlaylists] = useState(false);
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string | null>(null);
   const [selectedArtistId, setSelectedArtistId] = useState<string | null>(null);
@@ -69,19 +70,19 @@ function AppContent() {
   // Load playlists when authentication status changes or when navigating to library page
   useEffect(() => {
     if (isSpotifyAuthenticated && (currentPage === "library" || currentPage === "spotify-playlist")) {
-      loadSpotifyPlaylists();
+      loadSpotifyData();
     }
   }, [isSpotifyAuthenticated, currentPage]);
   
-  // Load Spotify playlists
-  const loadSpotifyPlaylists = async () => {
+  const loadSpotifyData = async () => {
     setIsLoadingPlaylists(true);
-    
     try {
-      const playlists = await getUserPlaylists();
+      const [playlists, likedCount] = await Promise.all([
+        getUserPlaylists(),
+        getLikedTracksCount()
+      ]);
       
-      // Convert to our SpotifyPlaylist type
-      const formattedPlaylists = playlists.map(playlist => ({
+      const formattedPlaylists = playlists.map((playlist: any) => ({
         id: playlist.id,
         name: playlist.name,
         description: playlist.description || "",
@@ -92,8 +93,9 @@ function AppContent() {
       }));
       
       setSpotifyPlaylists(formattedPlaylists);
+      setLikedSongsCount(likedCount);
     } catch (error) {
-      console.error("Failed to load Spotify playlists:", error);
+      console.error("Failed to load Spotify data:", error);
     } finally {
       setIsLoadingPlaylists(false);
     }
@@ -421,17 +423,20 @@ function AppContent() {
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
                         {/* Liked Songs as first item */}
-                        <div 
+                        <div
                           className="bg-gradient-to-br from-purple-700 to-blue-900 rounded-lg p-4 cursor-pointer hover:opacity-90 transition-opacity"
                           onClick={() => handlePageChange("liked")}
                         >
                           <div className="flex flex-col h-full">
                             <div className="flex-grow mb-4">
-                              <div className="flex items-center justify-center h-32 mb-4">
+                              {/* Changed h-32 to w-full and added rounded-md */}
+                              <div className="flex items-center justify-center w-full aspect-square rounded-md mb-4">
                                 <Heart className="h-16 w-16 text-white" />
                               </div>
                               <h3 className="text-xl font-bold">Liked Songs</h3>
-                              <p className="text-sm text-gray-300 mt-1">Your liked tracks</p>
+                              <p className="text-sm text-gray-300 mt-1">
+                                {likedSongsCount !== null ? `${likedSongsCount} tracks` : "Your liked tracks"}
+                              </p>
                             </div>
                           </div>
                         </div>
@@ -446,15 +451,15 @@ function AppContent() {
                             <div className="flex flex-col h-full">
                               <div className="flex-grow mb-4">
                                 {playlist.images[0]?.url ? (
-                                  <img 
-                                    src={playlist.images[0].url} 
-                                    alt={playlist.name} 
-                                    className="w-full h-32 object-cover rounded-md mb-4"
-                                  />
+<img 
+  src={playlist.images[0].url} 
+  alt={playlist.name} 
+  className="w-full aspect-square object-cover rounded-md mb-4"
+/>
                                 ) : (
-                                  <div className="flex items-center justify-center h-32 bg-gray-700 rounded-md mb-4">
-                                    <Music className="h-12 w-12 text-gray-400" />
-                                  </div>
+<div className="flex items-center justify-center h-32 aspect-square bg-gray-700 rounded-md mb-4">
+  <Music className="h-12 w-12 text-gray-400" />
+</div>
                                 )}
                                 <h3 className="text-lg font-bold truncate">{playlist.name}</h3>
                                 <p className="text-sm text-gray-400 mt-1 truncate">{playlist.description || `${playlist.tracks.total} tracks`}</p>
