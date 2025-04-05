@@ -75,6 +75,9 @@ impl Default for AppSettings {
 pub struct Credentials {
     pub soulseek_password: Option<String>,
     pub spotify_client_secret: Option<String>,
+    pub spotify_access_token: Option<String>,
+    pub spotify_refresh_token: Option<String>,
+    pub spotify_token_expires_at: Option<u64>, // Unix timestamp
 }
 
 // State to hold the app handle for accessing the store
@@ -86,5 +89,5 @@ pub fn init_settings_state() -> SettingsState {
 }
 
 // Module exports
-pub mod store;
 pub mod crypto;
+pub mod store;

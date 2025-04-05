@@ -1,12 +1,14 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Store, load } from "@tauri-apps/plugin-store";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import SpotifyAuth from "@/components/spotify/SpotifyAuth";
 
 // Define types for our settings
 interface SoulseekSettings {
@@ -35,6 +37,9 @@ interface AppSettings {
 interface Credentials {
   soulseek_password: string | null;
   spotify_client_secret: string | null;
+  spotify_access_token: string | null;
+  spotify_refresh_token: string | null;
+  spotify_token_expires_at: number | null;
 }
 
 export default function SettingsPage() {
@@ -48,7 +53,7 @@ export default function SettingsPage() {
     },
     spotify: {
       client_id: "",
-      redirect_uri: "http://localhost:9871/callback",
+      redirect_uri: "http://localhost:5174/callback",
     },
     output: {
       m3u_path: "playlists/",
@@ -59,11 +64,12 @@ export default function SettingsPage() {
   const [credentials, setCredentials] = useState<Credentials>({
     soulseek_password: null,
     spotify_client_secret: null,
+    spotify_access_token: null,
+    spotify_refresh_token: null,
+    spotify_token_expires_at: null,
   });
 
   const [isSaving, setIsSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState("");
-  const [loadError, setLoadError] = useState("");
 
   // Load settings and credentials on component mount
   useEffect(() => {
@@ -84,7 +90,6 @@ export default function SettingsPage() {
           const appSettings = await store.get("app_settings") as AppSettings;
           console.log("Loaded settings from store:", appSettings);
           setSettings(appSettings);
-          setLoadError("");
           return;
         } else {
           console.log("No settings found in store, falling back to command");
@@ -97,10 +102,9 @@ export default function SettingsPage() {
       const appSettings = await invoke<AppSettings>("get_settings");
       console.log("Received settings from command:", appSettings);
       setSettings(appSettings);
-      setLoadError("");
     } catch (error) {
       console.error("Failed to load settings:", error);
-      setLoadError(`Failed to load settings: ${error}`);
+      toast.error(`Failed to load settings: ${error}`);
     }
   };
 
@@ -113,15 +117,13 @@ export default function SettingsPage() {
       setCredentials(creds);
     } catch (error) {
       console.error("Failed to load credentials:", error);
-      setLoadError(prev => prev + `\nFailed to load credentials: ${error}`);
+      toast.error(`Failed to load credentials: ${error}`);
     }
   };
 
   // Save settings to backend
   const saveSettings = async () => {
     setIsSaving(true);
-    setSaveMessage("");
-    setLoadError("");
 
     try {
       console.log("Saving settings to backend:", settings);
@@ -145,17 +147,20 @@ export default function SettingsPage() {
         credentials: {
           soulseek_password: credentials.soulseek_password,
           spotify_client_secret: credentials.spotify_client_secret,
+          spotify_access_token: credentials.spotify_access_token,
+          spotify_refresh_token: credentials.spotify_refresh_token,
+          spotify_token_expires_at: credentials.spotify_token_expires_at,
         } 
       });
       
-      setSaveMessage("Settings saved successfully!");
+      toast.success("Settings saved successfully!");
       
       // Reload settings to verify they were saved correctly
       await loadSettings();
       await loadCredentials();
     } catch (error) {
       console.error("Failed to save settings:", error);
-      setSaveMessage("Failed to save settings. Please try again.");
+      toast.error("Failed to save settings. Please try again.");
     } finally {
       setIsSaving(false);
     }
@@ -185,10 +190,10 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="container mx-auto py-10">
-      <h1 className="text-3xl font-bold mb-6">Settings</h1>
+    <div className="container mx-auto pb-4">
+      <h1 className="text-3xl font-bold mb-4">Settings</h1>
 
-      <Tabs defaultValue="soulseek" className="w-full">
+      <Tabs defaultValue="soulseek" className="w-full dark">
         <TabsList className="mb-6">
           <TabsTrigger value="soulseek">Soulseek</TabsTrigger>
           <TabsTrigger value="spotify">Spotify</TabsTrigger>
@@ -197,7 +202,7 @@ export default function SettingsPage() {
 
         {/* Soulseek Settings */}
         <TabsContent value="soulseek">
-          <Card>
+          <Card className="dark">
             <CardHeader>
               <CardTitle>Soulseek Settings</CardTitle>
               <CardDescription>
@@ -272,13 +277,14 @@ export default function SettingsPage() {
                   </Label>
                 </div>
               </div>
+              
             </CardContent>
           </Card>
         </TabsContent>
 
         {/* Spotify Settings */}
         <TabsContent value="spotify">
-          <Card>
+          <Card className="dark">
             <CardHeader>
               <CardTitle>Spotify Settings</CardTitle>
               <CardDescription>
@@ -316,13 +322,19 @@ export default function SettingsPage() {
                   <Label htmlFor="spotify-redirect-uri">Redirect URI</Label>
                   <Input
                     id="spotify-redirect-uri"
-                    value={settings.spotify.redirect_uri}
-                    onChange={(e) =>
-                      updateSettings("spotify", "redirect_uri", e.target.value)
-                    }
-                    placeholder="http://localhost:9871/callback"
+                    value="http://localhost:5174/callback"
+                    readOnly
+                    disabled
+                    placeholder="http://localhost:5174/callback"
                   />
+                  <p className="text-sm text-muted-foreground">
+                    This URI is fixed for the internal callback server
+                  </p>
                 </div>
+              </div>
+              
+              <div className="mt-6">
+                <SpotifyAuth onAuthSuccess={() => loadCredentials()} />
               </div>
             </CardContent>
           </Card>
@@ -330,7 +342,7 @@ export default function SettingsPage() {
 
         {/* Output Settings */}
         <TabsContent value="output">
-          <Card>
+          <Card className="dark">
             <CardHeader>
               <CardTitle>Output Settings</CardTitle>
               <CardDescription>
@@ -349,7 +361,7 @@ export default function SettingsPage() {
                     }
                     placeholder="playlists/"
                   />
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-muted-foreground">
                     Set to 'none' to disable M3U playlist creation
                   </p>
                 </div>
@@ -364,7 +376,7 @@ export default function SettingsPage() {
                     }
                     placeholder="{albumartist|artist}/{album} ({year})/{track}. {title}"
                   />
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-muted-foreground">
                     Format for organizing downloaded files
                   </p>
                 </div>
@@ -374,31 +386,22 @@ export default function SettingsPage() {
         </TabsContent>
       </Tabs>
 
-      <div className="mt-6 flex justify-end">
-        <Button onClick={saveSettings} disabled={isSaving}>
-          {isSaving ? "Saving..." : "Save Settings"}
-        </Button>
-      </div>
-
-      {saveMessage && (
-        <p className="mt-4 text-center text-green-500">{saveMessage}</p>
-      )}
-      
-      {loadError && (
-        <p className="mt-4 text-center text-red-500">{loadError}</p>
-      )}
-      
-      <div className="mt-4 text-center">
-        <Button 
-          variant="outline" 
-          onClick={() => {
-            loadSettings();
-            loadCredentials();
-          }}
-          className="mx-auto"
-        >
-          Reload Settings
-        </Button>
+      <div className="mt-6">
+        <div className="flex justify-end gap-3">
+          <Button 
+            variant="outline" 
+            onClick={() => {
+              loadSettings();
+              loadCredentials();
+              toast.info("Settings reloaded");
+            }}
+          >
+            Reload Settings
+          </Button>
+          <Button onClick={saveSettings} disabled={isSaving}>
+            {isSaving ? "Saving..." : "Save Settings"}
+          </Button>
+        </div>
       </div>
     </div>
   );

@@ -2,8 +2,8 @@
 use tauri::Manager;
 
 // Import settings module
-mod settings;
 mod commands;
+mod settings;
 
 // Re-export settings types for use in commands
 pub use settings::{AppSettings, Credentials, SettingsState};
@@ -23,16 +23,16 @@ pub fn run() {
             // Initialize settings state
             let settings_state = settings::init_settings_state();
             app.manage(settings_state);
-            
+
             // Initialize settings store
             if let Err(e) = settings::store::init_settings_store(&app.handle()) {
                 eprintln!("Failed to initialize settings store: {}", e);
             }
-            
+
             // Ensure app data directory exists for encryption key
             let app_data_dir = app.handle().path().app_data_dir().unwrap();
             std::fs::create_dir_all(&app_data_dir).unwrap();
-            
+
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
@@ -41,7 +41,13 @@ pub fn run() {
             commands::settings::get_settings,
             commands::settings::save_settings,
             commands::settings::get_credentials,
-            commands::settings::save_credentials
+            commands::settings::save_credentials,
+            commands::sldl::execute_sldl,
+            commands::spotify::exchange_spotify_code,
+            commands::spotify::refresh_spotify_token,
+            commands::spotify::check_pending_auth,
+            commands::spotify::start_spotify_callback_server,
+            commands::spotify::stop_spotify_callback_server
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

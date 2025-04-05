@@ -20,6 +20,14 @@
     },
     "shell:allow-open",
     "shell:default",
-    "fs:default"
+    "fs:default",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        {
+          "url": "https://accounts.spotify.com/**"
+        }
+      ]
+    }
   ]
 }
