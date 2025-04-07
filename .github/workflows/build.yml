@@ -121,6 +121,6 @@ jobs:
         with:
           args: ${{ matrix.args }} --verbose
           tagName: v${{ steps.check-version.outputs.version }}
-          releaseName: "spacecat caption v${{ steps.check-version.outputs.version }}"
+          releaseName: "SoulShark v${{ steps.check-version.outputs.version }}"
           releaseDraft: false
           prerelease: false
