@@ -1,0 +1,126 @@
+name: 'build'
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'package.json'
+
+jobs:
+  build-macos:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - args: '--target aarch64-apple-darwin'
+            arch: 'silicon'
+    runs-on: macos-latest
+    env:
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      
+      # Set up Bun
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # Check if version changed
+      - name: Check version
+        id: check-version
+        run: |
+          # Get the current version
+          CURRENT_VERSION=$(grep -o '"version": *"[^"]*"' package.json | head -1 | cut -d'"' -f4)
+          echo "Current version: $CURRENT_VERSION"
+          echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          
+          # Check if this is a version change commit by looking for changes in package.json version
+          git diff HEAD^ HEAD -- package.json | grep -q '"version":'
+          if [ $? -eq 0 ]; then
+            echo "Version change detected"
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "No version change detected"
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+      
+      # Skip the rest if no version change
+      - name: Skip if no version change
+        if: steps.check-version.outputs.changed != 'true'
+        run: |
+          echo "No version change detected. Skipping build."
+          exit 0
+          
+      # Install Rust with proper targets for macOS (only Apple silicon)
+      - name: Install Rust stable
+        if: steps.check-version.outputs.changed == 'true'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: 'aarch64-apple-darwin'
+          
+      # Cache Rust dependencies for faster builds
+      - name: Rust cache
+        if: steps.check-version.outputs.changed == 'true'
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+      
+      # Install frontend dependencies
+      - name: Install frontend dependencies
+        if: steps.check-version.outputs.changed == 'true'
+        run: bun install
+        
+      # Import Apple Developer Certificate
+      - name: Import Apple Developer Certificate
+        if: steps.check-version.outputs.changed == 'true'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          # Decode certificate from base64
+          echo "Decoding certificate..."
+          echo $APPLE_CERTIFICATE | base64 --decode > certificate.p12
+          
+          # Create and configure keychain
+          echo "Creating keychain..."
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          
+          # Import certificate
+          echo "Importing certificate..."
+          security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          
+          # Set keychain permissions
+          echo "Setting keychain permissions..."
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+          
+          # List imported certificates for debugging
+          echo "Listing all imported certificates:"
+          security find-identity -v -p codesigning build.keychain
+          
+      # Run Tauri build with verbose logging using the CERT_ID from secrets
+      - name: Build with Tauri
+        if: steps.check-version.outputs.changed == 'true'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.CERT_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+        with:
+          args: ${{ matrix.args }} --verbose
+          tagName: v${{ steps.check-version.outputs.version }}
+          releaseName: "spacecat caption v${{ steps.check-version.outputs.version }}"
+          releaseDraft: false
+          prerelease: false
