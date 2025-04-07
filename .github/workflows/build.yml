@@ -107,7 +107,24 @@ jobs:
           echo "Listing all imported certificates:"
           security find-identity -v -p codesigning build.keychain
           
-      # Run Tauri build with verbose logging using the CERT_ID from secrets
+      # Verify Certificate
+      - name: Verify Certificate
+        if: steps.check-version.outputs.changed == 'true'
+        run: |
+          # Look specifically for the Developer ID Application certificate
+          CERT_INFO=$(security find-identity -v -p codesigning build.keychain | grep "Developer ID Application")
+          # Extract certificate ID if it exists
+          if [[ -n "$CERT_INFO" ]]; then
+            # Extract the full certificate name instead of just the hex ID
+            CERT_ID=$(echo "$CERT_INFO" | awk -F'"' '{print $2}')
+            echo "CERT_ID=$CERT_ID" >> $GITHUB_ENV
+            echo "Certificate found: $CERT_INFO"
+          else
+            echo "No Developer ID Application certificate found in keychain"
+            exit 1
+          fi
+          
+      # Run Tauri build with verbose logging
       - name: Build with Tauri
         if: steps.check-version.outputs.changed == 'true'
         uses: tauri-apps/tauri-action@v0
@@ -115,7 +132,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.CERT_ID }}
+          APPLE_SIGNING_IDENTITY: ${{ env.CERT_ID }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
         with:
