@@ -111,6 +111,7 @@ SoulShark requires a platform-specific binary of the Soulseek downloader. The fo
 - [ ] Github CI Workflow
 - [ ] Sign macOS binary
 - [ ] Compile for Windows/Linux/macOS Intel
+- [ ] Secure encryption keys (better than plaintext though, right?)
 
 ## Credits
 

@@ -3672,7 +3672,7 @@ dependencies = [
 
 [[package]]
 name = "soulshark"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "base64 0.13.1",
  "chacha20poly1305",
